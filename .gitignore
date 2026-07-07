@@ -1,0 +1,30 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+/clai
+
+# Build output
+/bin/
+/build/
+/dist/
+
+# Test artifacts
+*.out
+coverage.*
+*.coverprofile
+
+# Go workspace (local multi-module development)
+go.work
+go.work.sum
+
+# Environment (may contain secrets)
+.env
+.envrc
+
+# OS files
+.DS_Store
+Thumbs.db
