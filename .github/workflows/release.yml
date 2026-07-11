@@ -19,7 +19,9 @@ jobs:
       - uses: orhun/git-cliff-action@v4
         id: changelog
         with:
-          args: --latest --output CHANGES.md
+          args: --latest --no-exec
+        env:
+          OUTPUT: ${{ runner.temp }}/CHANGES.md
 
       - uses: actions/setup-go@v6
         with:
@@ -28,7 +30,7 @@ jobs:
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
-          args: release --clean --release-notes CHANGES.md
+          args: release --clean --release-notes ${{ runner.temp }}/CHANGES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
