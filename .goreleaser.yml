@@ -49,7 +49,7 @@ changelog:
 brews:
   - name: clai
     ids:
-      - clai
+      - binary
     repository:
       owner: maxrodrigo
       name: homebrew-tap
