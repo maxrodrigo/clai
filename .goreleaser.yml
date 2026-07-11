@@ -53,6 +53,8 @@ brews:
     repository:
       owner: maxrodrigo
       name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/maxrodrigo/clai
     description: A UNIX-native CLI tool for AI text processing
     license: MIT
