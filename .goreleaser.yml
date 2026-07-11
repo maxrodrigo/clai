@@ -1,0 +1,63 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: clai
+    main: ./cmd/clai
+    binary: clai
+    ldflags:
+      - -s -w
+      - -X github.com/maxrodrigo/clai/internal/version.Version={{.Version}}
+      - -X github.com/maxrodrigo/clai/internal/datadir.DefaultDataDir={{.Env.HOMEBREW_PREFIX}}/share/clai
+    env:
+      - CGO_ENABLED=0
+      - HOMEBREW_PREFIX={{ if eq .Os "darwin" }}/opt/homebrew{{ else }}/usr/local{{ end }}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: binary
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - share/clai/**/*
+
+  - id: data
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}-data"
+    meta: true
+    files:
+      - src: share/clai/**/*
+        dst: clai
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  draft: true
+
+changelog:
+  disable: true
+
+brews:
+  - name: clai
+    ids:
+      - clai
+    repository:
+      owner: maxrodrigo
+      name: homebrew-tap
+    homepage: https://github.com/maxrodrigo/clai
+    description: A UNIX-native CLI tool for AI text processing
+    license: MIT
+    install: |
+      bin.install "clai"
+      pkgshare.install Dir["share/clai/*"]
+    test: |
+      system "#{bin}/clai", "--version"

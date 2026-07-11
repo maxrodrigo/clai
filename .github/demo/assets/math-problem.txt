@@ -1,0 +1,5 @@
+A store sells apples in bags of 6 and oranges in bags of 4.
+Sarah bought 3 bags of apples and 2 bags of oranges.
+She gave 5 apples to her neighbor and ate 2 oranges.
+Then she split the remaining fruit equally between her 3 children.
+How many pieces of fruit did each child get?

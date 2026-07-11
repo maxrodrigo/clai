@@ -1,0 +1,34 @@
+diff --git a/internal/run/run.go b/internal/run/run.go
+index 119d93f..e40be00 100644
+--- a/internal/run/run.go
++++ b/internal/run/run.go
+@@ -64,7 +64,7 @@ func Prompt(ctx context.Context, rt *Runtime, opts PromptOptions) error {
+ 		}
+ 	}
+ 
+-	input, err := rt.Input.Resolve(ctx, opts.Sources, cfg)
++	input, err := rt.Input.Resolve(opts.Sources, cfg)
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/internal/source/source.go b/internal/source/source.go
+index 90d953d..4e9f43b 100644
+--- a/internal/source/source.go
++++ b/internal/source/source.go
+@@ -6,7 +6,6 @@ package source
+ 
+ import (
+ 	"bytes"
+-	"context"
+ 	"errors"
+ 	"fmt"
+ 	"io"
+@@ -37,7 +36,7 @@ func (in *Input) IsStdinTerminal() bool {
+ 
+ // Resolve reads and concatenates all input sources concurrently.
+ // Returns nil if no sources are given and stdin is a terminal.
+-func (in *Input) Resolve(ctx context.Context, paths []string, cfg *config.Config) ([]byte, error) {
++func (in *Input) Resolve(paths []string, cfg *config.Config) ([]byte, error) {
+ 	if len(paths) == 0 {
+ 		return in.readStdin()
+ 	}
