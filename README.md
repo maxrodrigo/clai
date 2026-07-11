@@ -5,7 +5,6 @@
 `clai` is a tool, not a platform. It amplifies your workflow, never captures it.
 
 [![CI](https://github.com/maxrodrigo/clai/actions/workflows/ci.yml/badge.svg)](https://github.com/maxrodrigo/clai/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/maxrodrigo/clai)](https://goreportcard.com/report/github.com/maxrodrigo/clai)
 [![Release](https://img.shields.io/github/v/release/maxrodrigo/clai)](https://github.com/maxrodrigo/clai/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
