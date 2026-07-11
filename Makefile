@@ -54,7 +54,7 @@ release: ## Preview and tag a release
 	@VERSION=v$$(git cliff --bumped-version) && \
 	printf "\nVersion [$$VERSION]: " && read -r ans && \
 	VERSION=$${ans:-$$VERSION} && \
-	git tag "$$VERSION" && git push origin "$$VERSION" && \
+	git tag -m "$$VERSION" "$$VERSION" && git push origin "$$VERSION" && \
 	echo "\nTagged $$VERSION. Draft release will appear on GitHub."
 
 help: ## Show commands
