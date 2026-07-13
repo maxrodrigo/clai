@@ -39,8 +39,6 @@ clai -e "Explain this code" main.go
 [Advanced](docs/ADVANCED.md) ·
 [Manifest](docs/MANIFEST.md)
 
----
-
 ## Highlights
 
 - **Pipeline native** — stdin in, stdout out. Composes with grep, jq, awk, and everything else.
@@ -88,8 +86,6 @@ clai -e "Explain in simple terms" complex.txt
 git diff --cached | clai commit
 curl -s https://api.example.com/data | clai -e "Find anomalies"
 ```
-
----
 
 ## Configuration
 
@@ -145,8 +141,6 @@ Configuration is merged in order (later overrides earlier):
 5. Environment variables (`CLAI_*`)
 6. CLI flags
 
----
-
 ## Providers
 
 Models are specified as `provider/model-name`. Each provider requires an API key — set it via environment variable or config file.
@@ -156,7 +150,7 @@ Models are specified as `provider/model-name`. Each provider requires an API key
 <details open>
 <summary><strong>OpenAI</strong></summary>
 
-Docs: https://platform.openai.com/docs
+API Key: https://platform.openai.com/api-keys
 
 ```sh
 export OPENAI_API_KEY="sk-..."
@@ -168,7 +162,7 @@ clai summarize -m openai/gpt-4.1 article.txt
 <details>
 <summary><strong>Anthropic</strong></summary>
 
-Docs: https://docs.anthropic.com
+API Key: https://console.anthropic.com/settings/keys
 
 ```sh
 export ANTHROPIC_API_KEY="sk-ant-..."
@@ -183,7 +177,7 @@ clai analyze -m anthropic/claude-sonnet --think problem.txt
 <details>
 <summary><strong>AWS Bedrock</strong></summary>
 
-Docs: https://docs.aws.amazon.com/bedrock
+Docs: https://docs.aws.amazon.com/bedrock/latest/userguide/getting-started-api.html
 
 ```sh
 export AWS_BEARER_TOKEN_BEDROCK="..."
@@ -220,8 +214,6 @@ clai summarize -m ollama/llama3.3 article.txt
 ```
 
 </details>
-
----
 
 ## Prompts
 
@@ -284,8 +276,6 @@ export CLAI_MODEL_SUMMARIZE="openai/gpt-4.1-mini"
 
 See [docs/ADVANCED.md](docs/ADVANCED.md) for prompt authoring principles, composition, and the evaluation checklist.
 
----
-
 ## Strategies
 
 Strategies modify how the model reasons through problems.
@@ -306,8 +296,6 @@ clai strategy                               # list all
 ```
 
 Create custom strategies in `~/.config/clai/strategies/`. See [docs/ADVANCED.md](docs/ADVANCED.md) for research basis, when to use each, and custom strategy authoring.
-
----
 
 ## Structured Output
 
@@ -338,8 +326,6 @@ schema:
 Extract metadata from this article.
 ```
 
----
-
 ## CLI Reference
 
 ```
@@ -348,37 +334,37 @@ clai [flags] <prompt> [files...]
 
 ### Flags
 
-| Flag                | Description                                     |
-| ------------------- | ----------------------------------------------- |
-| `-e, --expression`  | Inline prompt text                              |
-| `-f, --file`        | Read prompt from file                           |
-| `-m, --model`       | Model to use (e.g., `openai/gpt-4.1`)           |
-| `-t, --temperature` | Sampling temperature (0.0–2.0)                  |
-| `--max-tokens`      | Maximum tokens to generate                      |
-| `-s, --schema`      | Output schema (shorthand or JSON Schema)        |
-| `--strategy`        | Reasoning strategy (cot, cod, tot, self-refine) |
-| `--think`           | Enable extended thinking (Anthropic/Bedrock)    |
-| `-n, --dry-run`     | Show what would be sent without calling model   |
-| `-v, --verbose`     | Print token counts and timing to stderr         |
+| Flag                | Description                                        |
+| ------------------- | -------------------------------------------------- |
+| `-e, --expression`  | Inline prompt text                                 |
+| `-f, --file`        | Read prompt from file                              |
+| `-m, --model`       | Model to use (e.g., `openai/gpt-4.1`)              |
+| `-t, --temperature` | Sampling temperature (0.0–2.0)                     |
+| `--max-tokens`      | Maximum tokens to generate                         |
+| `-s, --schema`      | Output schema (shorthand or JSON Schema)           |
+| `--strategy`        | Reasoning strategy (cot, cod, tot, self-refine)    |
+| `--think`           | Enable extended thinking (Anthropic/Bedrock)       |
+| `-n, --dry-run`     | Show what would be sent without calling model      |
+| `-v, --verbose`     | Print token counts and timing to stderr            |
 | `--color`           | Force colored output even when stdout is not a TTY |
-| `--no-color`        | Disable colored output                          |
-| `--version`         | Print version and exit                          |
+| `--no-color`        | Disable colored output                             |
+| `--version`         | Print version and exit                             |
 
 ### Commands
 
-| Command                                     | Description                                    |
-| ------------------------------------------- | ---------------------------------------------- |
-| `clai prompt list`                          | List available prompts                         |
-| `clai prompt show <name>`                   | Show prompt content                            |
-| `clai prompt path <name>`                   | Show prompt file location                      |
-| `clai prompt add <name>`                    | Create a new prompt and open in `$EDITOR`      |
-| `clai prompt update <name>`                 | Edit an existing prompt in `$EDITOR`           |
-| `clai prompt remove <name>`                 | Remove a user-installed prompt                 |
-| `clai prompt install <owner/name> <file>`   | Install a prompt from a file under a namespace |
-| `clai strategy list`                        | List available strategies                      |
-| `clai strategy show <name>`                 | Show strategy content                          |
-| `clai strategy path <name>`                 | Show strategy file location                    |
-| `clai model list`                           | List available models                          |
+| Command                                   | Description                                    |
+| ----------------------------------------- | ---------------------------------------------- |
+| `clai prompt list`                        | List available prompts                         |
+| `clai prompt show <name>`                 | Show prompt content                            |
+| `clai prompt path <name>`                 | Show prompt file location                      |
+| `clai prompt add <name>`                  | Create a new prompt and open in `$EDITOR`      |
+| `clai prompt update <name>`               | Edit an existing prompt in `$EDITOR`           |
+| `clai prompt remove <name>`               | Remove a user-installed prompt                 |
+| `clai prompt install <owner/name> <file>` | Install a prompt from a file under a namespace |
+| `clai strategy list`                      | List available strategies                      |
+| `clai strategy show <name>`               | Show strategy content                          |
+| `clai strategy path <name>`               | Show strategy file location                    |
+| `clai model list`                         | List available models                          |
 
 ### Exit Codes
 
