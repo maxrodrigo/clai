@@ -2,18 +2,26 @@
 
 ## Development Setup
 
+### Prerequisites
+
+- Go (see `go.mod` for minimum version)
+
+### Getting Started
+
 ```sh
 git clone https://github.com/maxrodrigo/clai.git
 cd clai
 
-make check       # lint + test (CI runs this)
-make run ARGS="" # run without installing
+make run ARGS="summarize file.txt"  # build + run with local data
 ```
 
-### Prerequisites
+### Verifying Changes
 
-- Go (see `go.mod` for minimum version)
-- golangci-lint (`brew install golangci-lint`)
+Before submitting a PR:
+
+```sh
+make check  # lint + test (requires golangci-lint: brew install golangci-lint)
+```
 
 ### Available Commands
 
@@ -24,12 +32,8 @@ make test        # run tests
 make lint        # run linter
 make check       # lint + test
 make tidy        # tidy go.mod
-make install     # install to ~/.local (or PREFIX=...)
-make uninstall   # remove installed files
 make clean       # remove built binary
 ```
-
----
 
 ## Project Structure
 
@@ -54,8 +58,6 @@ share/clai/
 
 `internal/` is enforced by the Go compiler — external code cannot import it.
 
----
-
 ## Architecture
 
 ### Source Model
@@ -79,15 +81,14 @@ From most specific to most general:
 
 Implement `provider.Provider`, register via `init()` in `internal/provider/<name>/`, blank-import in `cmd/clai/main.go`.
 
----
-
 ## Code Contributions
 
 1. Fork the repo
 2. Create a branch (`git checkout -b fix-something`)
 3. Make your changes
-4. Run `make check`
-5. Submit a PR
+4. Test with `make run ARGS="..."`
+5. Run `make check`
+6. Submit a PR
 
 ### Guidelines
 
@@ -115,8 +116,6 @@ test: add edge case for circular extends
 chore: bump golangci-lint action
 ```
 
----
-
 ## Prompt Contributions
 
 The easiest way to contribute. No Go knowledge required.
@@ -131,8 +130,6 @@ The easiest way to contribute. No Go knowledge required.
 
 See [ADVANCED.md](docs/ADVANCED.md) for the full prompt authoring principles and evaluation checklist.
 
----
-
 ## Reporting Bugs
 
 Open an issue with:
@@ -143,8 +140,6 @@ Open an issue with:
 4. Output of `clai --version`
 
 Use `clai --dry-run <prompt>` to show resolved configuration without calling the model.
-
----
 
 ## Feature Requests
 

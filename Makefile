@@ -4,10 +4,6 @@ BINARY := clai
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/maxrodrigo/clai/internal/version.Version=$(VERSION)
 
-PREFIX := $(HOME)/.local
-BINDIR := $(PREFIX)/bin
-DATADIR := $(PREFIX)/share/clai
-
 .DEFAULT_GOAL := help
 
 build: ## Build clai binary
@@ -36,15 +32,6 @@ tidy-check: ## Verify go.mod is tidy
 build-check: ## Verify all packages compile
 	@go build -o /dev/null ./...
 
-install: build ## Install binary and data to PREFIX (default ~/.local)
-	install -d $(BINDIR) $(DATADIR)
-	install -m 755 $(BINARY) $(BINDIR)/$(BINARY)
-	cp -r share/clai/* $(DATADIR)/
-
-uninstall: ## Remove installed files
-	rm -f $(BINDIR)/$(BINARY)
-	rm -rf $(DATADIR)
-
 clean: ## Remove built binary
 	rm -f $(BINARY)
 
@@ -60,4 +47,4 @@ release: ## Preview and tag a release
 help: ## Show commands
 	@awk 'BEGIN {FS = ":.*##"} /^[a-z][a-z-]+:.*##/ {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-.PHONY: build run test lint check ci tidy tidy-check build-check install uninstall clean release help
+.PHONY: build run test lint check ci tidy tidy-check build-check clean release help
