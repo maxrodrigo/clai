@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 
+	"github.com/fatih/color"
 	"github.com/maxrodrigo/clai/internal/output"
 	"github.com/maxrodrigo/clai/internal/strategy"
 	"github.com/spf13/cobra"
@@ -43,8 +44,12 @@ func newStrategyListCmd(out *output.Output) *cobra.Command {
 				fmt.Fprintln(out.Stderr, "no strategies found")
 				return nil
 			}
+			header := color.New(color.Faint)
+			name := color.New(color.FgCyan)
+			header.Fprintf(out.Stdout, "%-14s  %s\n", "NAME", "DESCRIPTION")
 			for _, s := range strategies {
-				fmt.Fprintf(out.Stdout, "%-24s  %s\n", s.Name, s.Description)
+				name.Fprintf(out.Stdout, "%-14s", s.Name)
+				fmt.Fprintf(out.Stdout, "  %s\n", s.Description)
 			}
 			return nil
 		},

@@ -3,7 +3,9 @@ package commands
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/fatih/color"
@@ -77,6 +79,7 @@ func NewRoot(out *output.Output, in *source.Input) *cobra.Command {
 
 	root.CompletionOptions.HiddenDefaultCmd = true
 
+	root.SetHelpFunc(colorHelpFunc)
 	root.ValidArgsFunction = completePromptNames
 
 	root.SetOut(out.Stdout)
@@ -197,4 +200,31 @@ func completeStrategyNamesOnly(cmd *cobra.Command, args []string, toComplete str
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	return completeStrategyNames(cmd, args, toComplete)
+}
+
+// helpSectionRe matches lines like "Usage:", "Available Commands:", "Flags:".
+var helpSectionRe = regexp.MustCompile(`(?m)^([A-Z][A-Za-z ]+:)`)
+
+// colorHelpFunc renders cobra's default help with colored section headers.
+func colorHelpFunc(cmd *cobra.Command, _ []string) {
+	cmd.InitDefaultHelpFlag()
+
+	text := cmd.UsageString()
+	if long := cmd.Long; long != "" {
+		text = long + "\n\n" + text
+	} else if short := cmd.Short; short != "" {
+		text = short + "\n\n" + text
+	}
+
+	if color.NoColor {
+		fmt.Fprint(cmd.OutOrStdout(), text)
+		return
+	}
+
+	heading := color.New(color.Bold).SprintFunc()
+	text = helpSectionRe.ReplaceAllStringFunc(text, func(match string) string {
+		return heading(match)
+	})
+
+	fmt.Fprint(cmd.OutOrStdout(), text)
 }

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/fatih/color"
 	"github.com/maxrodrigo/clai/internal/config"
 	"github.com/maxrodrigo/clai/internal/output"
 	"github.com/maxrodrigo/clai/internal/prompt"
@@ -57,13 +58,17 @@ func newPromptListCmd(out *output.Output) *cobra.Command {
 				fmt.Fprintln(out.Stderr, "no prompts found")
 				return nil
 			}
+			header := color.New(color.Faint)
+			name := color.New(color.FgCyan)
+			header.Fprintf(out.Stdout, "%-16s  %-10s  %s\n", "NAME", "SOURCE", "DESCRIPTION")
 			for _, g := range groups {
 				for _, p := range g.Prompts {
 					desc := p.Frontmatter.Description
 					if desc == "" {
 						desc = "-"
 					}
-					fmt.Fprintf(out.Stdout, "%-24s  %-10s  %s\n", p.Name, g.Source, desc)
+					name.Fprintf(out.Stdout, "%-16s", p.Name)
+					fmt.Fprintf(out.Stdout, "  %-10s  %s\n", g.Source, desc)
 				}
 			}
 			return nil

@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/fatih/color"
 	"github.com/maxrodrigo/clai/internal/config"
 	"github.com/maxrodrigo/clai/internal/output"
 	"github.com/maxrodrigo/clai/internal/provider"
@@ -50,9 +51,12 @@ func listModels(ctx context.Context, out *output.Output, verbose bool) error {
 		return err
 	}
 
+	cyan := color.New(color.FgCyan).SprintFunc()
+	header := color.New(color.Faint)
 	providerNames := slices.Sorted(maps.Keys(cfg.Providers))
 
 	anyModels := false
+	headerPrinted := false
 	for _, name := range providerNames {
 		prov, err := provider.GetByName(name, cfg)
 		if err != nil {
@@ -72,8 +76,12 @@ func listModels(ctx context.Context, out *output.Output, verbose bool) error {
 			continue
 		}
 		slices.Sort(models)
+		if !headerPrinted {
+			header.Fprintln(out.Stdout, "MODEL")
+			headerPrinted = true
+		}
 		for _, m := range models {
-			fmt.Fprintln(out.Stdout, name+"/"+m)
+			fmt.Fprintf(out.Stdout, "%s/%s\n", cyan(name), m)
 		}
 		anyModels = true
 	}
