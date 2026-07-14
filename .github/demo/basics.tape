@@ -32,7 +32,7 @@ Sleep 3s
 # Scene 3: Chaining with web content — fetch an essay and summarize it
 Ctrl+L
 Sleep 500ms
-Type "curl -s 'https://r.jina.ai/https://paulgraham.com/startupideas.html' | clai summarize"
+Type "curl -s 'https://paulgraham.com/startupideas.html' | clai summarize"
 Sleep 500ms
 Enter
 Sleep 1s

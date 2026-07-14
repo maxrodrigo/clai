@@ -20,11 +20,11 @@ Sleep 2s
 # Beat 2: the reveal — general filter, composable, steerable with -e
 Ctrl+L
 Sleep 500ms
-Type "clai code-review apple-goto-fail.c | clai -e 'Extract the most critical bugs' | glow"
+Type "clai code-review apple-goto-fail.c | clai -e 'Explain the bug'"
 Sleep 500ms
 Enter
 Sleep 1s
 Hide
 Wait@30s
 Show
-Sleep 3s
+Sleep 1.5s

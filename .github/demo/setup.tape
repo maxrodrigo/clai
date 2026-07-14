@@ -5,14 +5,16 @@
 Set Shell "bash"
 Set Width 1200
 Set Height 600
-Set LineHeight 1.1
-Set Theme "Catppuccin Mocha"
-Set Padding 25
+
+Set FontSize 18
+Set Padding 24
 Set TypingSpeed 70ms
-Set BorderRadius 15
+Set BorderRadius 12
+Set WindowBar Colorful
+Set WindowBarSize 40
+
 Set Margin 40
-# Set MarginFill "#f6ebd5"
-Set MarginFill "#00add8"
+Set MarginFill "#0d1117"
 
 Hide
 Type "cd assets"
