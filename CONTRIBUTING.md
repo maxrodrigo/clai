@@ -56,24 +56,24 @@ share/clai/
   strategies/         system strategies
 ```
 
-`internal/` is enforced by the Go compiler — external code cannot import it.
+`internal/` is enforced by the Go compiler; external code cannot import it.
 
 ## Architecture
 
 ### Source Model
 
-Input comes from stdin (read when not a TTY) or file arguments (`os.ReadFile`). Multiple files resolve concurrently and join in declaration order. clai does not fetch URLs — content acquisition belongs in separate tools composed by pipes.
+Input comes from stdin (read when not a TTY) or file arguments (`os.ReadFile`). Multiple files resolve concurrently and join in declaration order. clai does not fetch URLs; content acquisition belongs in separate tools composed by pipes.
 
 ### Config Resolution
 
-From most specific to most general:
+Configuration is merged in order (later overrides earlier):
 
-1. CLI flag — this invocation
-2. Environment variable — this shell session
-3. Project config (`.clai/config.toml`) — this project
-4. User config (`~/.config/clai/config.toml`) — this user
-5. Prompt frontmatter — this prompt's defaults
-6. Default
+1. Built-in defaults
+2. Prompt frontmatter (this prompt's defaults)
+3. User config (`~/.config/clai/config.toml`)
+4. Project config (`.clai/config.toml`)
+5. Environment variables (`CLAI_*`)
+6. CLI flags
 
 `--dry-run` shows the fully resolved configuration.
 
@@ -92,15 +92,15 @@ Implement `provider.Provider`, register via `init()` in `internal/provider/<name
 
 ### Guidelines
 
-- **Scope:** clai is a text filter. It does not fetch URLs, manage platforms, or hold sessions.
-- **Flags:** New flags must align with [MANIFEST.md](docs/MANIFEST.md). If it conflicts, update the manifest in the same PR.
+- **Scope:** clai does one thing: send text to a model and print the result. It does not fetch URLs, manage platforms, or hold sessions.
+- **Flags:** New flags must align with [PHILOSOPHY.md](docs/PHILOSOPHY.md). If it conflicts, update the philosophy in the same PR.
 - **Exit codes are API.** Don't change their meanings.
 - **`--dry-run` must always work.** It's the primary debugging tool.
 
 ### Code Style
 
 - `go fmt` before committing
-- Minimal dependencies — prefer standard library
+- Minimal dependencies; prefer the standard library
 - Error messages: stderr, one line, name the problem
 - Tests cover behavior, not implementation. No test-only methods in production code.
 
@@ -147,6 +147,6 @@ Before requesting a feature, consider:
 
 - **Is this a prompt, not a feature?** Most "features" are better as prompts.
 - **Does this belong in the shell?** clai does not duplicate what `>`, `|`, or `xargs` already do.
-- **Does this expand clai's scope?** clai is a text filter, not a platform or agent.
+- **Does this expand clai's scope?** clai sends text to a model and prints the result. It is not a platform or agent.
 
 If it's still a feature request, open an issue explaining the use case.

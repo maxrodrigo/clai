@@ -1,4 +1,4 @@
-# Manifest
+# Philosophy
 
 _If a change conflicts with something here, update this document in the same PR. The reasoning matters as much as the decision._
 
@@ -14,15 +14,15 @@ UNIX made computing powerful by building small, composable tools that combine in
 
 Language models are powerful but most AI tools wrap them in platforms: chat UIs, agent loops, etc. They capture the user.
 
-`clai` takes a different approach. It brings AI into the pipeline as a filter: text in, text out. The tool serves the user, not the other way around.
+`clai` takes a different approach. It brings AI into the pipeline: text or a question in, a result out. The tool serves the user, not the other way around.
 
-## A filter, nothing more
+## One command, one result
 
-Text goes in, gets transformed, comes out. Everything else is optional.
+Text goes in, a result comes out. Everything else is optional.
 
 ## Mechanism, not policy
 
-The engine transforms text. It doesn't care about the prompts, which model you use, or what the output looks like. Those decisions are yours.
+The engine sends text to a model and returns the result. It doesn't care about the prompts, which model you use, or what the output looks like. Those decisions are yours.
 
 ## Knowledge in data, not code
 

@@ -1,16 +1,28 @@
-# Recipes
+# Examples
 
 Practical examples for using clai in common workflows. For basic usage, see the [README](../README.md).
 
+## clai is built for the UNIX pipeline
+
+`clai` reads from `stdin` and writes results to `stdout`, the same contract as `grep`, `jq`, `awk`, or `sed`. Everything below builds on that:
+
+- **Chain LLM calls.** The output of one `clai` is valid input to the next. `git diff | clai code-review | clai -e "Only critical bugs, numbered"` runs two models back to back, each working on the previous stage's output.
+- **Steer any step inline.** `-e "..."` supplies an ad-hoc prompt, so you are never limited to the built-in prompts. Mix named prompts and inline prompts freely in the same pipeline.
+- **Emit structured JSON.** `-s '{"field": "type"}'` validates output against a schema and exits non-zero on mismatch, so `clai parse ... | jq` and scripted retries are reliable.
+- **Run models locally for privacy.** Point `-m ollama/<model>` at a local endpoint and no data leaves your machine; switch to a frontier model only for the hard steps.
+- **Think harder on demand.** `--think` enables extended reasoning on supported providers for hard problems.
+
+The rest of this page is copy-pasteable recipes built on those primitives.
+
 ## Content Sources
 
-`clai` transforms text. Fetching content from YouTube, web pages, or other platforms is out of scope and belongs to other tools in your pipeline.
+`clai` takes text and returns results. Fetching content from YouTube, web pages, or other platforms is out of scope and belongs to other tools in your pipeline.
 
 This design trades one-command beginner convenience for:
 
-- **Transparency** — you see exactly what tools run and can debug each step
-- **Artifact control** — save the transcript, keep the video, reuse intermediate files
-- **Composability** — mix and match tools; clai doesn't lock you in
+- **Transparency.** You see exactly what tools run and can debug each step.
+- **Artifact control.** Save the transcript, keep the video, reuse intermediate files.
+- **Composability.** Mix and match tools; clai doesn't lock you in.
 
 > The examples below show how to use `clai` with third-party tools. Respect copyright, terms of service, and DRM restrictions. You're responsible for how you use them.
 
@@ -74,13 +86,11 @@ pbpaste | clai -e "Convert to bullet points" | pbcopy
 xclip -o | clai -e "Fix grammar" | xclip -selection clipboard
 ```
 
----
-
 ## Structured Output
 
 ```sh
-# Parse invoices to JSON
-clai parse -s '{"vendor": "str", "amount": "float", "date": "date", "items": "list"}' invoice.pdf
+# Parse invoices to JSON (clai reads text, so extract PDF text first)
+pdftotext invoice.pdf - | clai parse -s '{"vendor": "str", "amount": "float", "date": "date", "items": "list"}'
 
 # Extract and pipe to jq
 clai parse -s '{"title": "str", "tags": "list"}' article.txt | jq '.tags[]'
@@ -88,8 +98,6 @@ clai parse -s '{"title": "str", "tags": "list"}' article.txt | jq '.tags[]'
 # Convert prose to CSV
 clai to-csv report.txt > data.csv
 ```
-
----
 
 ## Git Workflows
 
@@ -107,8 +115,6 @@ git show abc1234 | clai -e "Explain what this change does and why"
 gh pr diff 42 | clai -e "TL;DR of this PR in 3 bullet points"
 ```
 
----
-
 ## Model Selection
 
 ```sh
@@ -116,15 +122,13 @@ gh pr diff 42 | clai -e "TL;DR of this PR in 3 bullet points"
 clai summarize -m ollama/llama3.3 confidential.txt
 
 # Frontier model for hard problems
-clai analyze --strategy tot -m anthropic/claude-sonnet architecture.md
+clai -e "Evaluate this design" --strategy tot -m anthropic/claude-sonnet architecture.md
 
 # Per-prompt model defaults in your shell profile
 export CLAI_MODEL_CODE_REVIEW="anthropic/claude-sonnet"
 export CLAI_MODEL_SUMMARIZE="openai/gpt-4.1-mini"
 export CLAI_MODEL_COMMIT="ollama/llama3.3"
 ```
-
----
 
 ## Strategies
 
@@ -144,24 +148,20 @@ for f in src/*.go; do
 done
 ```
 
----
-
 ## Project Configuration
 
 ```toml
-# .clai/config.toml — committed to repo
+# .clai/config.toml, committed to repo
 model = "openai/gpt-4.1"
 temperature = 0.7
 ```
 
+`.clai/prompts/review.md`, a team-specific code review committed to the repo:
+
 ```markdown
-# .clai/prompts/review.md — team-specific code review
-
 ---
-
 description: Team code review with our conventions
 strategy: cot
-
 ---
 
 Review this code following our team conventions:

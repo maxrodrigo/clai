@@ -2,7 +2,7 @@
 
 `stdin` → LLM → `stdout`.
 
-`clai` is a tool, not a platform. It amplifies your workflow, never captures it.
+The shell has a verb for everything except intelligence. `clai` adds the **ask**. Pipe in a diff and ask for a commit message, or pipe in a log and ask for structured JSON. The answer from the language model lands on `stdout`, where you or the next command picks it up.
 
 [![CI](https://github.com/maxrodrigo/clai/actions/workflows/ci.yml/badge.svg)](https://github.com/maxrodrigo/clai/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/maxrodrigo/clai)](https://github.com/maxrodrigo/clai/releases)
@@ -11,12 +11,12 @@
 <br>
 
 ```sh
-cat article.txt | clai summarize
-git diff HEAD~1 | clai code-review
-clai -e "Explain this code" main.go
+git diff | clai commit
+cat article.txt | clai summarize | clai translate
+clai code-review main.go | clai -e "Only critical bugs, numbered"
 ```
 
-![demo](.github/demo/output/demo.gif)
+![clai demo: git diff piped to clai commit, then a code review chained into a second clai call](.github/demo/dist/hero.gif)
 
 > _Write programs that do one thing and do it well._
 > _Write programs to work together._
@@ -25,6 +25,7 @@ clai -e "Explain this code" main.go
 > — Doug McIlroy
 
 - [Highlights](#highlights)
+- [Why clai](#why-clai)
 - [Install](#install)
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
@@ -35,19 +36,26 @@ clai -e "Explain this code" main.go
 - [CLI Reference](#cli-reference)
 
 **More docs:**
-[Recipes](docs/RECIPES.md) ·
+[Examples](docs/EXAMPLES.md) ·
 [Advanced](docs/ADVANCED.md) ·
-[Manifest](docs/MANIFEST.md)
+[Philosophy](docs/PHILOSOPHY.md)
 
 ## Highlights
 
-- **Pipeline native** — stdin in, stdout out. Composes with grep, jq, awk, and everything else.
-- **Works with any source** — YouTube transcripts, web pages, PDFs, git diffs, clipboard. Pipe it in. See [Recipes](docs/RECIPES.md).
-- **Zero config** — Set one API key and go. No setup wizards, no interactive prompts.
-- **Built-in prompts** — summarize, code-review, commit, translate, explain, and more.
-- **Multi-provider** — OpenAI, Anthropic, Bedrock, Ollama, or any OpenAI-compatible endpoint.
-- **Reasoning strategies** — Chain-of-Thought, Tree-of-Thought, Chain-of-Draft, Self-Refine.
-- **Structured output** — JSON Schema validation with a dedicated exit code.
+- **Pipeline native.** stdin in, stdout out. Composes with grep, jq, awk, and everything else.
+- **Works with any source.** YouTube transcripts, web pages, PDFs, git diffs, clipboard. Pipe it in. See [Examples](docs/EXAMPLES.md).
+- **Zero config.** Set one API key and go. No setup wizards, no interactive prompts.
+- **Built-in prompts.** summarize, code-review, commit, translate, explain, and more.
+- **Multi-provider.** OpenAI, Anthropic, Bedrock, Ollama, or any OpenAI-compatible endpoint.
+- **Local models.** Point it at Ollama and nothing leaves your machine.
+- **Reasoning strategies.** Chain-of-Thought, Tree-of-Thought, Chain-of-Draft, Self-Refine.
+- **Structured output.** JSON Schema validation with a dedicated exit code.
+
+## Why clai
+
+There are other terminal AI tools: [`llm`](https://github.com/simonw/llm), [`mods`](https://github.com/charmbracelet/mods), [`fabric`](https://github.com/danielmiessler/fabric), [`aichat`](https://github.com/sigoden/aichat). They are good, and most of them keep growing into sessions, plugins, and chat modes.
+
+`clai` bets the other way. A tool, not a platform. It amplifies your workflow without capturing it. There is no REPL and no session state; the command runs, prints its result, and exits. Behaviors live in markdown files you can open and edit. See [Philosophy](docs/PHILOSOPHY.md).
 
 ## Install
 
@@ -143,9 +151,7 @@ Configuration is merged in order (later overrides earlier):
 
 ## Providers
 
-Models are specified as `provider/model-name`. Each provider requires an API key — set it via environment variable or config file.
-
-![models demo](.github/demo/output/demo-models.gif)
+Models are specified as `provider/model-name`. Each provider requires an API key, set via environment variable or config file.
 
 <details open>
 <summary><strong>OpenAI</strong></summary>
@@ -169,7 +175,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 clai summarize -m anthropic/claude-sonnet article.txt
 
 # Extended thinking
-clai analyze -m anthropic/claude-sonnet --think problem.txt
+clai -e "Find the root cause" -m anthropic/claude-sonnet --think problem.txt
 ```
 
 </details>
@@ -219,7 +225,7 @@ clai summarize -m ollama/llama3.3 article.txt
 
 Prompts are markdown files that tell the model what to do.
 
-![prompts demo](.github/demo/output/demo-prompts.gif)
+![clai prompts demo: tldr, explain, and summarize named prompts running on files and piped input](.github/demo/dist/basics.gif)
 
 ```sh
 # Named prompts
@@ -227,16 +233,25 @@ clai summarize article.txt
 clai code-review code.patch
 clai translate notes.md
 
+# Multiple files
+clai summarize report.txt notes.txt
+
 # Inline prompt with -e
 clai -e "Explain this code" main.go
 
 # Prompt from file with -f
 clai -f my-prompt.md article.txt
 
+# Natural language to a shell command
+echo "find all Go files modified this week over 10KB" | clai shell-cmd
+# -> find . -name '*.go' -mtime -7 -size +10k
+
 # List available prompts
 clai prompt list
 clai prompt show summarize
 ```
+
+![clai shell-cmd demo: a plain-English request turned into a runnable find command](.github/demo/dist/shell-cmd.gif)
 
 ### Creating Prompts
 
@@ -261,8 +276,8 @@ clai your-prompt input.txt
 
 Prompts are resolved in order (first match wins):
 
-1. `.clai/prompts/` — Project-local
-2. `~/.config/clai/prompts/` — User
+1. `.clai/prompts/` (project-local)
+2. `~/.config/clai/prompts/` (user)
 3. Built-in
 
 ### Per-Prompt Model Override
@@ -280,19 +295,17 @@ See [docs/ADVANCED.md](docs/ADVANCED.md) for prompt authoring principles, compos
 
 Strategies modify how the model reasons through problems.
 
-![strategies demo](.github/demo/output/demo-strategies.gif)
-
-| Strategy      | Description                                             |
-| ------------- | ------------------------------------------------------- |
-| `cot`         | Chain-of-Thought — think step by step                   |
-| `cod`         | Chain-of-Draft — minimal notes per step (saves tokens)  |
-| `tot`         | Tree-of-Thought — explore multiple paths, pick the best |
-| `self-refine` | Answer, critique, improve                               |
+| Strategy      | Description                                            |
+| ------------- | ------------------------------------------------------ |
+| `cot`         | Chain-of-Thought: think step by step                   |
+| `cod`         | Chain-of-Draft: minimal notes per step (saves tokens)  |
+| `tot`         | Tree-of-Thought: explore multiple paths, pick the best |
+| `self-refine` | Answer, critique, improve                              |
 
 ```sh
-clai analyze --strategy cot problem.txt
-clai analyze --strategy none problem.txt   # disable
-clai strategy                               # list all
+clai explain --strategy cot problem.txt
+clai explain --strategy none problem.txt   # disable
+clai strategy list                          # list all
 ```
 
 Create custom strategies in `~/.config/clai/strategies/`. See [docs/ADVANCED.md](docs/ADVANCED.md) for research basis, when to use each, and custom strategy authoring.
@@ -301,7 +314,7 @@ Create custom strategies in `~/.config/clai/strategies/`. See [docs/ADVANCED.md]
 
 Use `--schema` to get JSON output conforming to a schema.
 
-![structured output demo](.github/demo/output/demo-structured.gif)
+![clai structured output demo: clai parse with a schema producing JSON piped to jq](.github/demo/dist/structured.gif)
 
 ```sh
 # Shorthand syntax
@@ -375,39 +388,6 @@ clai [flags] <prompt> [files...]
 | 2    | Usage error (invalid arguments, missing config)       |
 | 3    | Schema validation error (output doesn't match schema) |
 
-### Examples
-
-```sh
-# Basic
-cat doc.txt | clai summarize
-clai summarize doc.txt
-clai -e "Summarize in one sentence" doc.txt
-
-# Different models
-clai summarize -m anthropic/claude-sonnet doc.txt
-clai summarize -m ollama/llama3.3 doc.txt
-
-# Structured output
-clai parse -s '{"name": "str", "email": "str"}' contact.txt
-
-# Reasoning strategies
-clai analyze --strategy cot complex-problem.txt
-
-# Extended thinking
-clai analyze --think -m anthropic/claude-sonnet hard-problem.txt
-
-# Multiple sources
-clai summarize report.txt notes.txt
-
-# Chain with other tools
-git diff HEAD~1 | clai code-review
-clai summarize article.txt | clai translate
-curl -s api.example.com/data | clai -e "Find anomalies" | jq .
-
-# Dry run
-clai summarize -n doc.txt
-```
-
 ### Shell Completion
 
 ```sh
@@ -415,3 +395,9 @@ clai completion zsh --help
 clai completion bash --help
 clai completion fish --help
 ```
+
+---
+
+If clai fits your workflow, [star the repo](https://github.com/maxrodrigo/clai). It helps others find it.
+
+Prompts are the easiest contribution: they're markdown files, no Go required. See [CONTRIBUTING.md](CONTRIBUTING.md).

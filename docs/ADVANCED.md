@@ -28,31 +28,31 @@ Every system prompt follows this structure. Use only what the prompt needs.
 [Example]           — One input/output pair when format is non-obvious
 ```
 
-**Role** — Not decoration. It primes behavior. Specify domain expertise, approach, and values.
+**Role.** Not decoration. It primes behavior. Specify domain expertise, approach, and values.
 
 - Bad: `You are an expert programmer.`
 - Good: `You are a senior developer who prioritizes readability and correctness over cleverness.`
 
-**Task** — One sentence. Imperative mood. States the transformation.
+**Task.** One sentence. Imperative mood. States what to produce from the input.
 
 - Bad: `Please help the user by analyzing their code and providing feedback.`
 - Good: `Given source code, identify bugs, security issues, and performance problems.`
 
-**Quality criteria** — What separates good output from mediocre. The most underused technique.
+**Quality criteria.** What separates good output from mediocre. The most underused technique.
 
 - Bad: `Write a good summary.`
-- Good: `Each point should be independently meaningful — a reader who sees only that point should understand the claim without needing the others.`
+- Good: `Each point should be independently meaningful: a reader who sees only that point should understand the claim without needing the others.`
 
-**Constraints** — State what the model SHOULD do, not what it shouldn't. When a negative constraint is necessary, include the reason.
+**Constraints.** State what the model SHOULD do, not what it shouldn't. When a negative constraint is necessary, include the reason.
 
 - Bad: `Do not use bullet points.`
-- Good: `Output flowing prose, not bullet points — this output feeds into text-to-speech.`
+- Good: `Output flowing prose, not bullet points, because this output feeds into text-to-speech.`
 
-**Output format** — Plain text by default. No wrapping boilerplate. Predictable structure.
+**Output format.** Plain text by default. No wrapping boilerplate. Predictable structure.
 
-**Edge cases** — Handle empty input, wrong-type input, insufficient input. A short, parseable error message — not silence, not hallucination.
+**Edge cases.** Handle empty input, wrong-type input, insufficient input. A short, parseable error message, not silence or hallucination.
 
-**Examples** — One well-chosen example outperforms paragraphs of explanation. Show the shape, not a full real-world case.
+**Examples.** One well-chosen example outperforms paragraphs of explanation. Show the shape, not a full real-world case.
 
 ### Principles
 
@@ -60,13 +60,13 @@ Every system prompt follows this structure. Use only what the prompt needs.
 
 2. **Specificity over intensity.** `Output valid JSON. If the input cannot be structured, return {"error": "reason"}.` beats `CRITICAL: You MUST output valid JSON.`
 
-3. **Quality criteria beat word counts.** `Each point should be a single concrete claim — no filler, no hedging.` beats `Write each point in exactly 16 words.`
+3. **Quality criteria beat word counts.** `Each point should be a single concrete claim, no filler, no hedging.` beats `Write each point in exactly 16 words.`
 
 4. **One example > ten rules.** Use `<example>` tags to delimit examples clearly.
 
 5. **The model mirrors your register.** If your prompt is direct and terse, the output will be direct and terse.
 
-6. **Motivation unlocks generalization.** A constraint with a reason generalizes to cases you didn't enumerate.
+6. **Give constraints a reason.** A constraint with a reason generalizes to cases you didn't enumerate.
 
 7. **Handle failure explicitly.** `If the input contains no code, respond with exactly: "error: input is not code"`
 
@@ -124,28 +124,28 @@ Your prompt body here.
 
 ### When to Use Each Field
 
-**`model`** — Only when the prompt _requires_ capabilities that smaller models lack:
+**`model`**: only when the prompt _requires_ capabilities that smaller models lack:
 
 ```yaml
 model: openai/gpt-4.1 # needs complex JSON output
 ```
 
-**`temperature`** — When the task has a natural temperature:
+**`temperature`**: when the task has a natural temperature:
 
 ```yaml
 temperature: 0    # extraction tasks
 temperature: 0.9  # creative rewriting
 ```
 
-**`strategy`** — When the task reliably benefits from structured reasoning:
+**`strategy`**: when the task reliably benefits from structured reasoning:
 
 ```yaml
 strategy: cot # code review benefits from step-by-step
 ```
 
-**`think`** — For genuinely hard problems. Doubles token cost and latency.
+**`think`**: for hard problems. Doubles token cost and latency.
 
-**`extends`** — Build on a system prompt without duplicating it:
+**`extends`**: build on a system prompt without duplicating it:
 
 ```yaml
 extends: tweet
@@ -229,8 +229,8 @@ Strategies are research-backed reasoning techniques prepended to the system prom
 
 Strategies resolve from multiple sources (first match wins):
 
-1. `.clai/strategies/` — Project-local
-2. `~/.config/clai/strategies/` — User
+1. `.clai/strategies/` (project-local)
+2. `~/.config/clai/strategies/` (user)
 3. System (`share/clai/strategies/`)
 
 Precedence: `--strategy` flag > config file > prompt frontmatter.
@@ -241,7 +241,7 @@ Use `--strategy none` to disable any strategy.
 
 Think step by step, showing reasoning explicitly.
 
-**Research:** Wei et al., 2022 — [Chain-of-Thought Prompting Elicits Reasoning in Large Language Models](https://arxiv.org/abs/2201.11903)
+**Research:** Wei et al., 2022. [Chain-of-Thought Prompting Elicits Reasoning in Large Language Models](https://arxiv.org/abs/2201.11903)
 
 **Output format:**
 
@@ -258,7 +258,7 @@ Think step by step, showing reasoning explicitly.
 
 Minimal, dense notes before answering. Same rigor as CoT at ~7.6% of the tokens.
 
-**Research:** Xu et al., 2025 — [Chain of Draft: Thinking Faster by Writing Less](https://arxiv.org/abs/2502.18600)
+**Research:** Xu et al., 2025. [Chain of Draft: Thinking Faster by Writing Less](https://arxiv.org/abs/2502.18600)
 
 **Output format:**
 
@@ -275,7 +275,7 @@ Minimal, dense notes before answering. Same rigor as CoT at ~7.6% of the tokens.
 
 Explore 2-3 independent approaches, evaluate each, converge on the best.
 
-**Research:** Yao et al., 2023 — [Tree of Thoughts: Deliberate Problem Solving](https://arxiv.org/abs/2305.10601)
+**Research:** Yao et al., 2023. [Tree of Thoughts: Deliberate Problem Solving](https://arxiv.org/abs/2305.10601)
 
 **Output format:**
 
@@ -294,7 +294,7 @@ Explore 2-3 independent approaches, evaluate each, converge on the best.
 
 Draft, critique, improve. Mirrors write-review-revise.
 
-**Research:** Madaan et al., 2023 — [Self-Refine: Iterative Refinement with Self-Feedback](https://arxiv.org/abs/2303.17651)
+**Research:** Madaan et al., 2023. [Self-Refine: Iterative Refinement with Self-Feedback](https://arxiv.org/abs/2303.17651)
 
 **Output format:**
 
@@ -338,7 +338,7 @@ Format your response as:
 The first `# ` line becomes the description (shown in `clai strategy`). Everything after is the prompt text prepended to the system prompt.
 
 ```sh
-clai strategy                  # list all
+clai strategy list             # list all
 clai strategy show cot         # view a strategy
 clai strategy path cot         # file path (for editing)
 ```
@@ -349,7 +349,7 @@ Below is a complete configuration file showing all available options and their d
 
 ```toml
 # Model in provider/model-name format.
-# No default — must be set via config, env, or flag.
+# No default; must be set via config, env, or flag.
 # model = "openai/gpt-4.1"
 
 # Sampling temperature (0.0–2.0).
