@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1280px" height="640px" viewBox="0 0 1280 640" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <!-- Base background -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0f1a"/>
+      <stop offset="100%" stop-color="#0d1525"/>
+    </linearGradient>
+    <!-- Mesh blobs -->
+    <radialGradient id="mesh1" cx="15%" cy="80%" r="50%">
+      <stop offset="0%" stop-color="#1e3a5f" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#0a0f1a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="mesh2" cx="85%" cy="20%" r="45%">
+      <stop offset="0%" stop-color="#2d1b4e" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#0a0f1a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="mesh3" cx="60%" cy="90%" r="40%">
+      <stop offset="0%" stop-color="#0f3d3d" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#0a0f1a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background layers -->
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect width="1280" height="640" fill="url(#mesh1)"/>
+  <rect width="1280" height="640" fill="url(#mesh2)"/>
+  <rect width="1280" height="640" fill="url(#mesh3)"/>
+
+  <!-- LEFT SIDE: Title + tagline + formula + install -->
+  <g transform="translate(90, 210)">
+    <!-- Title with glow for visual weight -->
+    <text font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="96" font-weight="800" fill="#79c0ff">clai</text>
+
+    <!-- Headline -->
+    <text y="56" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="500" fill="#c9d1d9">AI for the Command Line.</text>
+    <text y="86" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="500" fill="#8b949e">Pipe in anything. Get answers.</text>
+
+    <!-- Visual formula: stdin | LLM | stdout -->
+    <text y="146" font-family="ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace" font-size="17">
+      <tspan fill="#79c0ff">stdin</tspan><tspan fill="#484f58"> | </tspan><tspan fill="#d2a8ff">LLM</tspan><tspan fill="#484f58"> | </tspan><tspan fill="#7ee787">stdout</tspan>
+    </text>
+
+    <!-- Install command -->
+    <g transform="translate(0, 190)">
+      <rect x="0" y="0" width="340" height="42" rx="6" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+      <text x="16" y="27" font-family="ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace" font-size="14" fill="#7ee787">$</text>
+      <text x="32" y="27" font-family="ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace" font-size="14" fill="#c9d1d9">brew install maxrodrigo/tap/clai</text>
+    </g>
+  </g>
+
+  <!-- RIGHT SIDE: Terminal window (fully within viewport, safe for platform crops) -->
+  <g transform="translate(480, 130)">
+    <!-- Terminal chrome - 720×380, centered vertically and within safe margins -->
+    <rect x="0" y="0" width="720" height="380" rx="12" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+
+    <!-- Title bar -->
+    <rect x="0" y="0" width="720" height="38" rx="12" fill="#161b22"/>
+    <rect x="0" y="26" width="720" height="12" fill="#161b22"/>
+
+    <!-- Traffic lights -->
+    <circle cx="22" cy="19" r="5.5" fill="#f85149" opacity="0.7"/>
+    <circle cx="42" cy="19" r="5.5" fill="#d29922" opacity="0.7"/>
+    <circle cx="62" cy="19" r="5.5" fill="#3fb950" opacity="0.7"/>
+
+    <!-- Terminal content - 3 commands, tight response-to-next-command spacing -->
+    <g transform="translate(30, 68)">
+      <!-- Command 1: Commit message generation (named prompt) -->
+      <text y="0" font-family="ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace" font-size="17">
+        <tspan fill="#7ee787">$</tspan><tspan fill="#c9d1d9"> git diff | clai commit</tspan>
+      </text>
+      <text y="34" font-family="ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace" font-size="16">
+        <tspan fill="#d2a8ff">feat</tspan><tspan fill="#8b949e">(</tspan><tspan fill="#79c0ff">auth</tspan><tspan fill="#8b949e">): add OAuth2 token refresh flow</tspan>
+      </text>
+
+      <!-- Command 2: Log triage (inline prompt with -e) -->
+      <text y="94" font-family="ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace" font-size="17">
+        <tspan fill="#7ee787">$</tspan><tspan fill="#c9d1d9"> cat server.log | clai -e "what's crashing?"</tspan>
+      </text>
+      <text y="128" font-family="ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace" font-size="16">
+        <tspan fill="#ffa657">OOM killed</tspan><tspan fill="#8b949e"> at 14:32. Memory leak in </tspan><tspan fill="#7ee787">worker.processQueue()</tspan>
+      </text>
+      <text y="152" font-family="ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace" font-size="16">
+        <tspan fill="#8b949e">— unbounded array grows on each retry without draining.</tspan>
+      </text>
+
+      <!-- Command 3: Structured output (file arg, -s schema, JSON output) -->
+      <text y="212" font-family="ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace" font-size="17">
+        <tspan fill="#7ee787">$</tspan><tspan fill="#c9d1d9"> clai parse -s '{"vendor":"str","total":"float"}' invoice.pdf</tspan>
+      </text>
+      <text y="246" font-family="ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace" font-size="16">
+        <tspan fill="#8b949e">{</tspan><tspan fill="#79c0ff">"vendor"</tspan><tspan fill="#8b949e">: </tspan><tspan fill="#a5d6ff">"Acme Corp"</tspan><tspan fill="#8b949e">, </tspan><tspan fill="#79c0ff">"total"</tspan><tspan fill="#8b949e">: </tspan><tspan fill="#7ee787">2340.00</tspan><tspan fill="#8b949e">}</tspan>
+      </text>
+    </g>
+  </g>
+</svg>
