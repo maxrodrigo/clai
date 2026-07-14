@@ -3,7 +3,7 @@ module github.com/maxrodrigo/clai
 go 1.25.0
 
 require (
-	github.com/anthropics/anthropic-sdk-go v1.53.0
+	github.com/anthropics/anthropic-sdk-go v1.57.0
 	github.com/fatih/color v1.19.0
 	github.com/openai/openai-go v1.12.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
