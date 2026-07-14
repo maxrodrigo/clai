@@ -1,0 +1,5 @@
+How Sharp-Witted Are You?
+
+Motorboat M leaves shore A as N leaves B; they move across a lake at constant speed. They meet the first time 500 yards from A. Each returns from the opposite shore without halting, and they meet 300 yards from B.
+
+How long is the lake and what is the relation between the two boats' speeds? Sharp wits can solve the problem with a minimum of calculation.

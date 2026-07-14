@@ -2,18 +2,17 @@
 # Install: brew install charmbracelet/tap/vhs
 # Source from demo tapes
 
-# Set Shell "bash"
-Set FontSize 20
+Set Shell "bash"
 Set Width 1200
 Set Height 600
-# Set Theme "Catppuccin Mocha"
-Set Padding 20
+Set LineHeight 1.1
+Set Theme "Catppuccin Mocha"
+Set Padding 25
 Set TypingSpeed 70ms
-# Set Framerate 30
-# Set BorderRadius 10
-# Set Margin 20
-# Set MarginFill "#151b23"
-# Set CursorBlink false
+Set BorderRadius 15
+Set Margin 40
+# Set MarginFill "#f6ebd5"
+Set MarginFill "#00add8"
 
 Hide
 Type "cd assets"
