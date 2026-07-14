@@ -38,7 +38,7 @@ clean: ## Remove built binary
 release: ## Preview and tag a release
 	@git diff --exit-code --quiet || (echo "error: working tree is dirty" >&2 && exit 1)
 	@git cliff --bump --unreleased
-	@VERSION=v$$(git cliff --bumped-version) && \
+	@VERSION=$$(git cliff --bumped-version) && \
 	printf "\nVersion [$$VERSION]: " && read -r ans && \
 	VERSION=$${ans:-$$VERSION} && \
 	git tag -m "$$VERSION" "$$VERSION" && git push origin "$$VERSION" && \

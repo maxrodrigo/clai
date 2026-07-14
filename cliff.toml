@@ -1,0 +1,18 @@
+# git-cliff configuration
+# https://git-cliff.org/docs/configuration
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+include_paths = ["cmd/**", "internal/**", "go.mod", "go.sum"]
+
+[bump]
+features_always_bump_minor = true
+breaking_always_bump_major = true
+
+commit_parsers = [
+    { message = "^feat", bump = "minor" },
+    { message = "^fix", bump = "patch" },
+    { message = "^perf", bump = "patch" },
+    { message = "^refactor", bump = "patch" },
+]

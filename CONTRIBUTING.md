@@ -109,12 +109,18 @@ Implement `provider.Provider`, register via `init()` in `internal/provider/<name
 [Conventional Commits](https://www.conventionalcommits.org/) format:
 
 ```
-feat: add Gemini provider support
-fix: handle empty schema in dry-run mode
-docs: update strategy examples
-test: add edge case for circular extends
-chore: bump golangci-lint action
+feat: add Gemini provider support      → minor bump
+fix: handle empty schema in dry-run    → patch bump
+perf: cache compiled templates         → patch bump
+refactor: extract provider interface   → patch bump
+docs: update strategy examples         → no bump
+ci: add release workflow               → no bump
+test: add edge case for circular extends → no bump
+chore: bump golangci-lint action       → no bump
 ```
+
+Only `feat`, `fix`, `perf`, and `refactor` trigger a version bump.
+Use `ci:` for pipeline changes — not `fix(ci):` — to avoid unintended bumps.
 
 ## Prompt Contributions
 
