@@ -77,7 +77,7 @@ func listModels(ctx context.Context, out *output.Output, verbose bool) error {
 		}
 		slices.Sort(models)
 		if !headerPrinted {
-			header.Fprintln(out.Stdout, "MODEL")
+			_, _ = header.Fprintln(out.Stdout, "MODEL")
 			headerPrinted = true
 		}
 		for _, m := range models {

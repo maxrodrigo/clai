@@ -46,9 +46,9 @@ func newStrategyListCmd(out *output.Output) *cobra.Command {
 			}
 			header := color.New(color.Faint)
 			name := color.New(color.FgCyan)
-			header.Fprintf(out.Stdout, "%-14s  %s\n", "NAME", "DESCRIPTION")
+			_, _ = header.Fprintf(out.Stdout, "%-14s  %s\n", "NAME", "DESCRIPTION")
 			for _, s := range strategies {
-				name.Fprintf(out.Stdout, "%-14s", s.Name)
+				_, _ = name.Fprintf(out.Stdout, "%-14s", s.Name)
 				fmt.Fprintf(out.Stdout, "  %s\n", s.Description)
 			}
 			return nil

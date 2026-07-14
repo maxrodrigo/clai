@@ -60,14 +60,14 @@ func newPromptListCmd(out *output.Output) *cobra.Command {
 			}
 			header := color.New(color.Faint)
 			name := color.New(color.FgCyan)
-			header.Fprintf(out.Stdout, "%-16s  %-10s  %s\n", "NAME", "SOURCE", "DESCRIPTION")
+			_, _ = header.Fprintf(out.Stdout, "%-16s  %-10s  %s\n", "NAME", "SOURCE", "DESCRIPTION")
 			for _, g := range groups {
 				for _, p := range g.Prompts {
 					desc := p.Frontmatter.Description
 					if desc == "" {
 						desc = "-"
 					}
-					name.Fprintf(out.Stdout, "%-16s", p.Name)
+					_, _ = name.Fprintf(out.Stdout, "%-16s", p.Name)
 					fmt.Fprintf(out.Stdout, "  %-10s  %s\n", g.Source, desc)
 				}
 			}
