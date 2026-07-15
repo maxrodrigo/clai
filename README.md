@@ -2,7 +2,7 @@
 
 `stdin` → LLM → `stdout`.
 
-The shell has a verb for everything except intelligence. `clai` adds the **ask**. Pipe in a diff and ask for a commit message, or pipe in a log and ask for structured JSON. The answer from the language model lands on `stdout`, where you or the next command picks it up.
+`clai` turns a language model into a regular shell command. It reads input (stdin), does what the prompt says, prints the result (stdout). Everything else (`grep`, `jq`, `git`, `cat`, `pbpaste`, `xclip`) works with it the way it always has.
 
 [![CI](https://github.com/maxrodrigo/clai/actions/workflows/ci.yml/badge.svg)](https://github.com/maxrodrigo/clai/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/maxrodrigo/clai)](https://github.com/maxrodrigo/clai/releases)
