@@ -112,7 +112,7 @@ func GetByName(name string, cfg *config.Config) (Provider, error) {
 // requiresAPIKey returns true for providers known to need authentication.
 func requiresAPIKey(name string) bool {
 	switch name {
-	case "ollama":
+	case "ollama", "vertex":
 		return false
 	default:
 		return true
@@ -128,6 +128,10 @@ func envKeyHint(name string) string {
 		return "ANTHROPIC_API_KEY"
 	case "bedrock":
 		return "AWS_BEARER_TOKEN_BEDROCK"
+	case "gemini":
+		return "GOOGLE_API_KEY"
+	case "vertex":
+		return "GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION"
 	default:
 		return strings.ToUpper(name) + "_API_KEY"
 	}
