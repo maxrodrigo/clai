@@ -20,7 +20,7 @@ jobs:
       - uses: orhun/git-cliff-action@v4
         id: changelog
         with:
-          args: --latest --no-exec
+          args: --current --tag ${{ github.ref_name }}
         env:
           OUTPUT: ${{ runner.temp }}/CHANGES.md
 
