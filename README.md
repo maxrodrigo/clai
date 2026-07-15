@@ -46,7 +46,7 @@ clai code-review main.go | clai -e "Only critical bugs, numbered"
 - **Works with any source.** YouTube transcripts, web pages, PDFs, git diffs, clipboard. Pipe it in. See [Examples](docs/EXAMPLES.md).
 - **Zero config.** Set one API key and go. No setup wizards, no interactive prompts.
 - **Built-in prompts.** summarize, code-review, commit, translate, explain, and more.
-- **Multi-provider.** OpenAI, Anthropic, Bedrock, Ollama, or any OpenAI-compatible endpoint.
+- **Multi-provider.** OpenAI, Anthropic, Gemini, Vertex AI, Bedrock, Ollama, or any OpenAI-compatible endpoint.
 - **Local models.** Point it at Ollama and nothing leaves your machine.
 - **Reasoning strategies.** Chain-of-Thought, Tree-of-Thought, Chain-of-Draft, Self-Refine.
 - **Structured output.** JSON Schema validation with a dedicated exit code.
@@ -196,6 +196,44 @@ Config (to change region):
 [providers.bedrock]
 api_key = "${AWS_BEARER_TOKEN_BEDROCK}"
 base_url = "https://bedrock-runtime.us-west-2.amazonaws.com"
+```
+
+</details>
+
+<details>
+<summary><strong>Gemini (Google AI Studio)</strong></summary>
+
+API Key: https://aistudio.google.com/apikey
+
+```sh
+export GOOGLE_API_KEY="..."
+clai summarize -m gemini/gemini-2.5-flash article.txt
+
+# Thinking mode
+clai -e "Find the root cause" -m gemini/gemini-2.5-pro --think problem.txt
+```
+
+</details>
+
+<details>
+<summary><strong>Vertex AI</strong></summary>
+
+Docs: https://cloud.google.com/vertex-ai/generative-ai/docs/start/quickstarts/quickstart-multimodal
+
+Uses Application Default Credentials. Set up with `gcloud auth application-default login` or a service account.
+
+```sh
+export GOOGLE_CLOUD_PROJECT="my-project-id"
+export GOOGLE_CLOUD_LOCATION="us-central1"
+clai summarize -m vertex/gemini-2.5-flash article.txt
+```
+
+Config (alternative to env vars):
+
+```toml
+[providers.vertex]
+project = "my-project-id"
+location = "us-central1"
 ```
 
 </details>

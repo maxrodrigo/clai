@@ -117,7 +117,7 @@ Your prompt body here.
 | `temperature` | float  | Sampling temperature (0.0–2.0). Overridden by `-t`.                                            |
 | `strategy`    | string | Default reasoning strategy. Overridden by `--strategy`.                                        |
 | `schema`      | string | JSON Schema for structured output. Overridden by `-s`.                                         |
-| `think`       | bool   | Enable extended thinking (Anthropic/Bedrock). Overridden by `--think`.                         |
+| `think`       | bool   | Enable extended thinking (Anthropic/Bedrock/Gemini). Overridden by `--think`.                  |
 | `extends`     | string | Inherit body and frontmatter from another named prompt.                                        |
 | `prepend`     | list   | Files prepended before the prompt body. Relative to prompt file's directory.                   |
 | `append`      | list   | Files appended after the prompt body. Same path resolution.                                    |
@@ -396,6 +396,15 @@ base_url = "https://bedrock-runtime.us-east-1.amazonaws.com"
 api_key = "${AWS_BEARER_TOKEN_BEDROCK}"
 # timeout = 0
 
+[providers.gemini]
+api_key = "${GOOGLE_API_KEY}"
+# timeout = 0
+
+[providers.vertex]
+project = "${GOOGLE_CLOUD_PROJECT}"
+location = "${GOOGLE_CLOUD_LOCATION}"
+# timeout = 0
+
 [providers.ollama]
 base_url = "http://localhost:11434/v1"
 # api_key = ""  # not required for local Ollama
@@ -429,7 +438,7 @@ export CLAI_MODEL_CODE_REVIEW="anthropic/claude-sonnet"
 export CLAI_MODEL_SUMMARIZE="openai/gpt-4.1-mini"
 ```
 
-Provider API keys use their standard environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `AWS_BEARER_TOKEN_BEDROCK`).
+Provider API keys use their standard environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `AWS_BEARER_TOKEN_BEDROCK`, `GOOGLE_API_KEY`). Vertex AI uses `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION`.
 
 ### Precedence
 
