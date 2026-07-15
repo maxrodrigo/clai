@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"maps"
 	"slices"
 
@@ -12,6 +13,19 @@ import (
 	"github.com/maxrodrigo/clai/internal/provider"
 	"github.com/spf13/cobra"
 )
+
+// providerColor returns a deterministic color for a provider name.
+// Uses 12 distinct ANSI foreground colors (6 standard + 6 hi-intensity),
+// excluding black and white for readability on both light and dark terminals.
+func providerColor(name string) *color.Color {
+	h := fnv.New32a()
+	h.Write([]byte(name))
+	idx := h.Sum32() % 12
+	if idx < 6 {
+		return color.New(color.Attribute(31 + idx)) // FgRed(31) through FgCyan(36)
+	}
+	return color.New(color.Attribute(91 + idx - 6)) // FgHiRed(91) through FgHiCyan(96)
+}
 
 func newModelCmd(out *output.Output) *cobra.Command {
 	cmd := &cobra.Command{
@@ -51,7 +65,6 @@ func listModels(ctx context.Context, out *output.Output, verbose bool) error {
 		return err
 	}
 
-	cyan := color.New(color.FgCyan).SprintFunc()
 	header := color.New(color.Faint)
 	providerNames := slices.Sorted(maps.Keys(cfg.Providers))
 
@@ -80,8 +93,9 @@ func listModels(ctx context.Context, out *output.Output, verbose bool) error {
 			_, _ = header.Fprintln(out.Stdout, "MODEL")
 			headerPrinted = true
 		}
+		c := providerColor(name).SprintFunc()
 		for _, m := range models {
-			fmt.Fprintf(out.Stdout, "%s/%s\n", cyan(name), m)
+			fmt.Fprintf(out.Stdout, "%s/%s\n", c(name), m)
 		}
 		anyModels = true
 	}
