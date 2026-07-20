@@ -25,16 +25,45 @@ type Provider interface {
 	Models(ctx context.Context) ([]string, error)
 }
 
+// Message is a single turn in a multi-turn request.
+type Message struct {
+	Role    string // "system", "user", "assistant"
+	Content string
+}
+
 // Request represents the input to a model call.
 type Request struct {
 	Model       string
 	System      string
 	User        string
+	// Messages, when non-empty, carries the full multi-turn history and takes
+	// precedence over System/User. The run layer guarantees at most one
+	// system-role message, always first. Providers consume it via Turns.
+	Messages    []Message
 	Temperature *float64 // nil means use provider default
 	MaxTokens   int
 	Think       bool
 	ThinkBudget int
 	JSONMode    bool
+}
+
+// Turns normalizes the request into an effective system prompt and the
+// ordered non-system turns, regardless of whether the request uses the
+// single-shot form (System/User) or the multi-turn form (Messages).
+// Providers map the returned turns to their native types and place system
+// in their system slot (or as a leading system message).
+func (r Request) Turns() (system string, turns []Message) {
+	if len(r.Messages) == 0 {
+		return r.System, []Message{{Role: "user", Content: r.User}}
+	}
+	for _, m := range r.Messages {
+		if m.Role == "system" {
+			system = m.Content
+			continue
+		}
+		turns = append(turns, m)
+	}
+	return system, turns
 }
 
 // Response represents the output from a model call.
