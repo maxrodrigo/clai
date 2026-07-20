@@ -60,7 +60,7 @@ func (p *Provider) Complete(ctx context.Context, req provider.Request) (provider
 	if p.initErr != nil {
 		return provider.Response{}, p.opErr("complete", p.initErr)
 	}
-	contents := []*genai.Content{genai.NewContentFromText(req.User, genai.RoleUser)}
+	contents := buildContents(req)
 	cfg := p.buildConfig(req)
 
 	result, err := p.client.Models.GenerateContent(ctx, req.Model, contents, cfg)
@@ -74,7 +74,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.Request, w i
 	if p.initErr != nil {
 		return provider.Response{}, p.opErr("stream", p.initErr)
 	}
-	contents := []*genai.Content{genai.NewContentFromText(req.User, genai.RoleUser)}
+	contents := buildContents(req)
 	cfg := p.buildConfig(req)
 
 	var sb strings.Builder
@@ -116,11 +116,24 @@ func (p *Provider) Models(ctx context.Context) ([]string, error) {
 	return ids, nil
 }
 
+func buildContents(req provider.Request) []*genai.Content {
+	_, turns := req.Turns()
+	contents := make([]*genai.Content, 0, len(turns))
+	for _, t := range turns {
+		var role genai.Role = genai.RoleUser
+		if t.Role == "assistant" {
+			role = genai.RoleModel
+		}
+		contents = append(contents, genai.NewContentFromText(t.Content, role))
+	}
+	return contents
+}
+
 func (p *Provider) buildConfig(req provider.Request) *genai.GenerateContentConfig {
 	cfg := &genai.GenerateContentConfig{}
 
-	if req.System != "" {
-		cfg.SystemInstruction = &genai.Content{Parts: []*genai.Part{{Text: req.System}}}
+	if system, _ := req.Turns(); system != "" {
+		cfg.SystemInstruction = &genai.Content{Parts: []*genai.Part{{Text: system}}}
 	}
 	if req.Temperature != nil {
 		cfg.Temperature = genai.Ptr[float32](float32(*req.Temperature))
