@@ -33,9 +33,9 @@ type Message struct {
 
 // Request represents the input to a model call.
 type Request struct {
-	Model       string
-	System      string
-	User        string
+	Model  string
+	System string
+	User   string
 	// Messages, when non-empty, carries the full multi-turn history and takes
 	// precedence over System/User. The run layer guarantees at most one
 	// system-role message, always first. Providers consume it via Turns.

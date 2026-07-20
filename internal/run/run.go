@@ -91,13 +91,13 @@ func Prompt(ctx context.Context, rt *Runtime, opts PromptOptions) error {
 
 	// baseSystem is the undecorated system prompt (stored in conversation).
 	// effectiveSystem gets strategy/schema decorations for the API call.
+	explicit := explicitPrompt(opts)
 	baseSystem := systemPrompt
 
 	// Inherit system prompt from conversation history if not explicitly provided.
-	if conv != nil && systemPrompt == "" {
+	if conv != nil && !explicit {
 		if lastSys := conversation.LastSystem(history); lastSys != nil {
 			baseSystem = lastSys.Content
-			systemPrompt = lastSys.Content
 		}
 	}
 
@@ -114,7 +114,7 @@ func Prompt(ctx context.Context, rt *Runtime, opts PromptOptions) error {
 	}
 
 	// Apply strategy/schema decorations to the effective system prompt.
-	effectiveSystem := systemPrompt
+	effectiveSystem := baseSystem
 	if strat != nil {
 		effectiveSystem = strat.Apply(effectiveSystem)
 	}
@@ -161,17 +161,13 @@ func Prompt(ctx context.Context, rt *Runtime, opts PromptOptions) error {
 
 	resp, streamed, err := executeModel(ctx, rt, cfg, req, sch != nil)
 	if err != nil {
-		if conv != nil && conv.IsNew() {
-			cleanupNewConversation(conv)
-		}
+		cleanupNewConversation(conv)
 		return err
 	}
 
 	if sch != nil {
 		if err := sch.Validate([]byte(resp.Content)); err != nil {
-			if conv != nil && conv.IsNew() {
-				cleanupNewConversation(conv)
-			}
+			cleanupNewConversation(conv)
 			return err
 		}
 	}
@@ -189,7 +185,7 @@ func Prompt(ctx context.Context, rt *Runtime, opts PromptOptions) error {
 
 	// Persist the turn to the conversation file.
 	if conv != nil {
-		storeSystem := conv.IsNew() || systemPrompt != ""
+		storeSystem := conv.IsNew() || explicit
 		persistTurn(rt, conv, storeSystem, baseSystem, cfg.Model, userMessage, resp)
 		if conv.IsNew() {
 			rt.Output.PrintHint("[clai] new conversation '%s'\n", conv.Name)
@@ -340,9 +336,12 @@ func resolveConversation(rt *Runtime, opts PromptOptions, userMessage string) (*
 		}
 	}
 
-	history, _, err := conv.Messages()
+	history, skipped, err := conv.Messages()
 	if err != nil {
 		return nil, nil, err
+	}
+	if skipped > 0 {
+		rt.Output.PrintWarning("warning: skipped %d malformed line(s) in conversation '%s'\n", skipped, conv.Name)
 	}
 
 	return conv, history, nil
@@ -365,33 +364,40 @@ func buildConversationMessages(system string, history []conversation.Message, us
 	return msgs
 }
 
-// persistTurn appends the current turn (system if needed, user, assistant) to the conversation file.
+// persistTurn appends this turn to the conversation. Failures are warnings,
+// not errors — the response has already been delivered on stdout.
+// The system line is stored even when empty: it carries the model field,
+// which model inheritance depends on for conversations started without a prompt.
 func persistTurn(rt *Runtime, conv *conversation.Conversation, storeSystem bool, system, model, user string, resp provider.Response) {
-	now := time.Now()
-	if storeSystem && system != "" {
-		_ = conv.Append(conversation.Message{
-			Role:    "system",
-			Content: system,
-			Model:   model,
-			TS:      now,
-		})
+	now := time.Now().UTC()
+	pending := make([]conversation.Message, 0, 3)
+	if storeSystem {
+		pending = append(pending, conversation.Message{Role: "system", Content: system, Model: model, TS: now})
 	}
-	_ = conv.Append(conversation.Message{
-		Role:    "user",
-		Content: user,
-		TS:      now,
-	})
-	_ = conv.Append(conversation.Message{
-		Role:      "assistant",
-		Content:   resp.Content,
-		Model:     model,
-		TS:        now,
-		TokensIn:  resp.InputTokens,
-		TokensOut: resp.OutputTokens,
-	})
+	pending = append(pending,
+		conversation.Message{Role: "user", Content: user, TS: now},
+		conversation.Message{Role: "assistant", Content: resp.Content, TS: now, TokensIn: resp.InputTokens, TokensOut: resp.OutputTokens},
+	)
+	for _, m := range pending {
+		if err := conv.Append(m); err != nil {
+			rt.Output.PrintWarning("warning: conversation not saved: %s\n", err)
+			return
+		}
+	}
 }
 
-// cleanupNewConversation removes a newly created conversation file on error.
+// cleanupNewConversation removes the reserved-but-empty file left behind when
+// a brand-new conversation's first model call fails. No-op for existing
+// conversations or nil.
 func cleanupNewConversation(conv *conversation.Conversation) {
-	_ = os.Remove(conv.Path())
+	if conv != nil && conv.IsNew() {
+		_ = os.Remove(conv.Path())
+	}
+}
+
+// explicitPrompt reports whether the user provided a prompt on this
+// invocation (named prompt, -e, or -f) rather than relying on the
+// conversation's stored system prompt.
+func explicitPrompt(opts PromptOptions) bool {
+	return opts.PromptName != "" || opts.InlinePrompt != "" || opts.PromptFile != ""
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/maxrodrigo/clai/internal/conversation"
 	"github.com/maxrodrigo/clai/internal/output"
 	"github.com/maxrodrigo/clai/internal/prompt"
+	"github.com/maxrodrigo/clai/internal/provider"
 	"github.com/maxrodrigo/clai/internal/source"
 )
 
@@ -114,6 +115,64 @@ func TestResolvePrompt_FileMissing(t *testing.T) {
 	_, err := resolvePrompt(opts)
 	if err == nil {
 		t.Fatal("expected error for missing prompt file")
+	}
+}
+
+func TestExplicitPrompt(t *testing.T) {
+	tests := []struct {
+		name string
+		opts PromptOptions
+		want bool
+	}{
+		{"named prompt", PromptOptions{PromptName: "x"}, true},
+		{"inline prompt", PromptOptions{InlinePrompt: "x"}, true},
+		{"prompt file", PromptOptions{PromptFile: "x"}, true},
+		{"conversation only", PromptOptions{Conversation: "some-chat"}, false},
+		{"zero opts", PromptOptions{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := explicitPrompt(tt.opts); got != tt.want {
+				t.Errorf("explicitPrompt(%+v) = %v, want %v", tt.opts, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPersistTurnStoresEmptySystemLineWithModel(t *testing.T) {
+	t.Setenv("CLAI_CONVERSATIONS_DIR", t.TempDir())
+
+	conv, err := conversation.Open("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var outBuf, errBuf bytes.Buffer
+	rt := &Runtime{
+		Output: &output.Output{Stdout: &outBuf, Stderr: &errBuf},
+		Input:  &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}},
+	}
+
+	persistTurn(rt, conv, true, "", "openai/gpt-4.1", "hi", provider.Response{Content: "yo"})
+
+	msgs, skipped, err := conv.Messages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if skipped != 0 {
+		t.Errorf("expected no skipped lines, got %d", skipped)
+	}
+	if len(msgs) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(msgs))
+	}
+	if msgs[0].Role != "system" {
+		t.Errorf("expected first message role 'system', got %q", msgs[0].Role)
+	}
+	if msgs[0].Content != "" {
+		t.Errorf("expected empty system content, got %q", msgs[0].Content)
+	}
+	if msgs[0].Model != "openai/gpt-4.1" {
+		t.Errorf("expected system model 'openai/gpt-4.1', got %q", msgs[0].Model)
 	}
 }
 
