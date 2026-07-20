@@ -131,13 +131,16 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.Request, w i
 
 // buildBody assembles a Converse API request body from a provider.Request.
 func buildBody(req provider.Request) converseRequest {
-	body := converseRequest{
-		Messages: []converseMessage{
-			{Role: "user", Content: []converseTextBlock{{Text: req.User}}},
-		},
+	system, turns := req.Turns()
+	var body converseRequest
+	for _, t := range turns {
+		body.Messages = append(body.Messages, converseMessage{
+			Role:    t.Role,
+			Content: []converseTextBlock{{Text: t.Content}},
+		})
 	}
-	if req.System != "" {
-		body.System = []converseTextBlock{{Text: req.System}}
+	if system != "" {
+		body.System = []converseTextBlock{{Text: system}}
 	}
 
 	conf := &converseInferenceConf{}
