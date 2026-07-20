@@ -17,6 +17,30 @@ func newConversationCmd(out *output.Output) *cobra.Command {
 		Use:     "conversation",
 		Aliases: []string{"conversations"},
 		Short:   "Manage conversations",
+		Long: `Manage conversations persisted by the -c flag.
+
+Start or continue a conversation with -c on any clai invocation:
+
+  -c <name>   create or continue the named conversation
+  -c -        continue the most recent conversation
+  -c +        start a new conversation, auto-named from the input
+
+Names are lowercase slugs ([a-z0-9._-], not starting with '-' or '.').
+The system prompt and model from the first turn are inherited on
+continuation; pass a prompt or -m to override for a turn.
+
+Conversations are JSONL files, one message per line, stored under
+$XDG_STATE_HOME/clai/conversations (override with CLAI_CONVERSATIONS_DIR).`,
+		Example: `  echo "what is k8s?" | clai -c k8s -e "explain concisely"
+  echo "and swarm?"   | clai -c k8s
+  echo "more"         | clai -c -
+  echo "new topic"    | clai -c +
+
+  clai conversation list
+  clai conversation show k8s
+  clai conversation rename k8s k8s-basics
+  clai conversation remove k8s-basics
+  clai conversation remove --older-than 30d`,
 	}
 	cmd.AddCommand(
 		newConversationListCmd(out),
