@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/maxrodrigo/clai/internal/config"
+	"github.com/maxrodrigo/clai/internal/conversation"
 	"github.com/maxrodrigo/clai/internal/output"
 	"github.com/maxrodrigo/clai/internal/prompt"
 	"github.com/maxrodrigo/clai/internal/source"
@@ -284,5 +287,140 @@ func TestCLIConversationReservedTokensPassThrough(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// seedConversation creates a conversation with a system and user message for testing.
+func seedConversation(t *testing.T, name string) {
+	t.Helper()
+	c, err := conversation.Open(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := time.Now()
+	_ = c.Append(conversation.Message{Role: "system", Content: "be brief", Model: "openai/gpt-4.1", TS: ts})
+	_ = c.Append(conversation.Message{Role: "user", Content: "what is k8s?", TS: ts})
+	_ = c.Append(conversation.Message{Role: "assistant", Content: "an orchestrator", Model: "openai/gpt-4.1", TS: ts, TokensIn: 25, TokensOut: 150})
+}
+
+func TestCLIConversationList(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAI_CONVERSATIONS_DIR", dir)
+
+	seedConversation(t, "my-chat")
+
+	var buf bytes.Buffer
+	out := &output.Output{Stdout: &buf, Stderr: &bytes.Buffer{}}
+	in := &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}}
+
+	cmd := NewRoot(out, in)
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{"conversation", "list"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("conversation list: %v", err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "my-chat") {
+		t.Errorf("output missing 'my-chat': %q", got)
+	}
+	if !strings.Contains(got, "NAME") {
+		t.Errorf("output missing header: %q", got)
+	}
+}
+
+func TestCLIConversationShow(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAI_CONVERSATIONS_DIR", dir)
+
+	seedConversation(t, "show-test")
+
+	var buf bytes.Buffer
+	out := &output.Output{Stdout: &buf, Stderr: &bytes.Buffer{}}
+	in := &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}}
+
+	cmd := NewRoot(out, in)
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{"conversation", "show", "show-test"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("conversation show: %v", err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "what is k8s?") {
+		t.Errorf("output missing user message: %q", got)
+	}
+	if !strings.Contains(got, "an orchestrator") {
+		t.Errorf("output missing assistant message: %q", got)
+	}
+}
+
+func TestCLIConversationRename(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAI_CONVERSATIONS_DIR", dir)
+
+	seedConversation(t, "old-conv")
+
+	var buf bytes.Buffer
+	out := &output.Output{Stdout: &buf, Stderr: &bytes.Buffer{}}
+	in := &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}}
+
+	cmd := NewRoot(out, in)
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{"conversation", "rename", "old-conv", "new-conv"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("conversation rename: %v", err)
+	}
+	// Verify rename occurred.
+	if _, err := os.Stat(filepath.Join(dir, "new-conv.jsonl")); err != nil {
+		t.Errorf("new file not found after rename: %v", err)
+	}
+}
+
+func TestCLIConversationRemove(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAI_CONVERSATIONS_DIR", dir)
+
+	seedConversation(t, "doomed")
+
+	var buf bytes.Buffer
+	out := &output.Output{Stdout: &buf, Stderr: &bytes.Buffer{}}
+	in := &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}}
+
+	cmd := NewRoot(out, in)
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{"conversation", "remove", "doomed"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("conversation remove: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "doomed.jsonl")); !os.IsNotExist(err) {
+		t.Errorf("file should have been removed: %v", err)
+	}
+}
+
+func TestCLIConversationRemoveOlderThan(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAI_CONVERSATIONS_DIR", dir)
+
+	seedConversation(t, "ancient")
+	seedConversation(t, "recent")
+
+	// Make "ancient" look old.
+	old := time.Now().Add(-40 * 24 * time.Hour)
+	_ = os.Chtimes(filepath.Join(dir, "ancient.jsonl"), old, old)
+
+	var buf bytes.Buffer
+	out := &output.Output{Stdout: &buf, Stderr: &bytes.Buffer{}}
+	in := &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}}
+
+	cmd := NewRoot(out, in)
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{"conversation", "remove", "--older-than", "30d"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("conversation remove --older-than: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "ancient.jsonl")); !os.IsNotExist(err) {
+		t.Errorf("ancient should have been removed")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "recent.jsonl")); err != nil {
+		t.Errorf("recent should survive: %v", err)
 	}
 }

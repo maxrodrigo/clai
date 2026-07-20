@@ -118,6 +118,7 @@ func NewRoot(out *output.Output, in *source.Input) *cobra.Command {
 		newPromptCmd(out),
 		newStrategyCmd(out),
 		newModelCmd(out),
+		newConversationCmd(out),
 	)
 
 	return root
