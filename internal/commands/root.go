@@ -26,8 +26,28 @@ import (
 // The out and in parameters provide I/O dependencies for the run pipeline.
 func NewRoot(out *output.Output, in *source.Input) *cobra.Command {
 	root := &cobra.Command{
-		Use:           "clai [flags] <prompt> [files...]",
-		Short:         "AI text processing for the UNIX pipeline",
+		Use:   "clai [flags] <prompt> [files...]",
+		Short: "AI text processing for the UNIX pipeline",
+		Long: `AI text processing for the UNIX pipeline.
+
+clai reads text from stdin or files, runs it through an AI model with a
+prompt, and writes the result to stdout — a filter, like grep or sed.
+
+The prompt is a named prompt (first argument), an inline expression (-e),
+or a file (-f). See 'clai prompt list' for available named prompts.`,
+		Example: `  # named prompt over stdin
+  git diff --staged | clai commit
+
+  # inline prompt
+  cat notes.md | clai -e "extract the action items"
+
+  # structured output
+  cat error.log | clai summarize -s '{"errors":"array"}'
+
+  # conversations: same flag to start and continue
+  echo "what is k8s?" | clai -c k8s -e "explain concisely"
+  echo "and swarm?"   | clai -c k8s
+  echo "more"         | clai -c -`,
 		Version:       version.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
