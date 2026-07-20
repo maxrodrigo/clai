@@ -326,6 +326,9 @@ func resolveConversation(rt *Runtime, opts PromptOptions, userMessage string) (*
 			return nil, nil, err
 		}
 	case "+":
+		if opts.DryRun {
+			return nil, nil, nil
+		}
 		conv, err = conversation.New(userMessage)
 		if err != nil {
 			return nil, nil, err
