@@ -58,11 +58,18 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.Request, w i
 }
 
 func (p *Provider) buildParams(req provider.Request) openaisdk.ChatCompletionNewParams {
+	system, turns := req.Turns()
 	var messages []openaisdk.ChatCompletionMessageParamUnion
-	if req.System != "" {
-		messages = append(messages, openaisdk.SystemMessage(req.System))
+	if system != "" {
+		messages = append(messages, openaisdk.SystemMessage(system))
 	}
-	messages = append(messages, openaisdk.UserMessage(req.User))
+	for _, t := range turns {
+		if t.Role == "assistant" {
+			messages = append(messages, openaisdk.AssistantMessage(t.Content))
+		} else {
+			messages = append(messages, openaisdk.UserMessage(t.Content))
+		}
+	}
 
 	params := openaisdk.ChatCompletionNewParams{
 		Model:    req.Model,
