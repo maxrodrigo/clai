@@ -220,6 +220,45 @@ func TestPromptConversationDryRunShowsHistory(t *testing.T) {
 	}
 }
 
+func TestPromptConversationInlineWithoutInputInheritsSystem(t *testing.T) {
+	// With no piped input, -e text becomes the USER message (buildMessages),
+	// so it is not a system-prompt override: the conversation's stored
+	// system prompt must be inherited, not dropped.
+	t.Setenv("CLAI_CONVERSATIONS_DIR", t.TempDir())
+
+	c, err := conversation.Open("persona")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := time.Now()
+	_ = c.Append(conversation.Message{Role: "system", Content: "answer like a pirate", Model: "openai/gpt-4.1", TS: ts})
+	_ = c.Append(conversation.Message{Role: "user", Content: "explain k8s", TS: ts})
+	_ = c.Append(conversation.Message{Role: "assistant", Content: "arr, containers", TS: ts})
+
+	var outBuf, errBuf bytes.Buffer
+	rt := &Runtime{
+		Output: &output.Output{Stdout: &outBuf, Stderr: &errBuf},
+		Input:  &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}},
+	}
+
+	err = Prompt(context.Background(), rt, PromptOptions{
+		InlinePrompt: "and swarm?", // no stdin: this is the user message
+		DryRun:       true,
+		Conversation: "persona",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got := errBuf.String()
+	if !strings.Contains(got, "system: answer like a pirate") {
+		t.Errorf("stored system prompt not inherited, stderr: %q", got)
+	}
+	if !strings.Contains(got, "user: and swarm?") {
+		t.Errorf("-e text should be the user message, stderr: %q", got)
+	}
+}
+
 func TestPromptConversationLatestNoneErrors(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CLAI_CONVERSATIONS_DIR", dir)

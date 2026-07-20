@@ -91,7 +91,11 @@ func Prompt(ctx context.Context, rt *Runtime, opts PromptOptions) error {
 
 	// baseSystem is the undecorated system prompt (stored in conversation).
 	// effectiveSystem gets strategy/schema decorations for the API call.
-	explicit := explicitPrompt(opts)
+	//
+	// A prompt only counts as a system-prompt override when it actually
+	// became the system prompt: with no piped input, -e text is the user
+	// message (see buildMessages) and must not clobber the stored one.
+	explicit := explicitPrompt(opts) && systemPrompt != ""
 	baseSystem := systemPrompt
 
 	// Inherit system prompt from conversation history if not explicitly provided.
