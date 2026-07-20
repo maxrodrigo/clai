@@ -1,11 +1,18 @@
 package run
 
 import (
+	"bytes"
+	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/maxrodrigo/clai/internal/conversation"
+	"github.com/maxrodrigo/clai/internal/output"
 	"github.com/maxrodrigo/clai/internal/prompt"
+	"github.com/maxrodrigo/clai/internal/source"
 )
 
 func TestBuildMessages_InlineWithoutInput(t *testing.T) {
@@ -107,5 +114,98 @@ func TestResolvePrompt_FileMissing(t *testing.T) {
 	_, err := resolvePrompt(opts)
 	if err == nil {
 		t.Fatal("expected error for missing prompt file")
+	}
+}
+
+func TestPromptConversationDryRunShowsHistory(t *testing.T) {
+	// Seed a conversation with history.
+	dir := t.TempDir()
+	t.Setenv("CLAI_CONVERSATIONS_DIR", dir)
+	t.Setenv("CLAI_MODEL", "openai/gpt-4o")
+
+	c, err := conversation.Open("test-conv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := time.Now()
+	_ = c.Append(conversation.Message{Role: "system", Content: "be brief", Model: "openai/gpt-4.1", TS: ts})
+	_ = c.Append(conversation.Message{Role: "user", Content: "what is k8s?", TS: ts})
+	_ = c.Append(conversation.Message{Role: "assistant", Content: "an orchestrator", Model: "openai/gpt-4.1", TS: ts, TokensIn: 25, TokensOut: 150})
+
+	var outBuf, errBuf bytes.Buffer
+	out := &output.Output{Stdout: &outBuf, Stderr: &errBuf}
+	in := &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}}
+	rt := &Runtime{Output: out, Input: in}
+
+	opts := PromptOptions{
+		InlinePrompt: "explain more",
+		DryRun:       true,
+		Conversation: "test-conv",
+	}
+
+	err = Prompt(context.Background(), rt, opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got := errBuf.String()
+	if !strings.Contains(got, "history user: what is k8s?") {
+		t.Errorf("missing history user line in stderr: %q", got)
+	}
+	if !strings.Contains(got, "history assistant: an orchestrator") {
+		t.Errorf("missing history assistant line in stderr: %q", got)
+	}
+	// Should inherit model from conversation history
+	if !strings.Contains(got, "openai/gpt-4.1") {
+		t.Errorf("should inherit model from conversation, stderr: %q", got)
+	}
+}
+
+func TestPromptConversationLatestNoneErrors(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAI_CONVERSATIONS_DIR", dir)
+	t.Setenv("CLAI_MODEL", "openai/gpt-4o")
+
+	var outBuf, errBuf bytes.Buffer
+	out := &output.Output{Stdout: &outBuf, Stderr: &errBuf}
+	in := &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}}
+	rt := &Runtime{Output: out, Input: in}
+
+	opts := PromptOptions{
+		InlinePrompt: "hello",
+		Conversation: "-",
+	}
+
+	err := Prompt(context.Background(), rt, opts)
+	if err == nil {
+		t.Fatal("expected error for -c - with empty dir")
+	}
+	if !strings.Contains(err.Error(), "no conversations found") {
+		t.Errorf("expected 'no conversations found' error, got: %v", err)
+	}
+}
+
+func TestPromptConversationBinaryInputRejected(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAI_CONVERSATIONS_DIR", dir)
+	t.Setenv("CLAI_MODEL", "openai/gpt-4o")
+
+	var outBuf, errBuf bytes.Buffer
+	out := &output.Output{Stdout: &outBuf, Stderr: &errBuf}
+	// Input with null bytes
+	in := &source.Input{Stdin: strings.NewReader("hello\x00world"), Stderr: &bytes.Buffer{}}
+	rt := &Runtime{Output: out, Input: in}
+
+	opts := PromptOptions{
+		InlinePrompt: "summarize this",
+		Conversation: "some-conv",
+	}
+
+	err := Prompt(context.Background(), rt, opts)
+	if err == nil {
+		t.Fatal("expected error for binary input with -c")
+	}
+	if !strings.Contains(err.Error(), "binary input") {
+		t.Errorf("expected 'binary input' error, got: %v", err)
 	}
 }
