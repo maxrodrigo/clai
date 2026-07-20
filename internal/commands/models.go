@@ -19,7 +19,7 @@ import (
 // excluding black and white for readability on both light and dark terminals.
 func providerColor(name string) *color.Color {
 	h := fnv.New32a()
-	h.Write([]byte(name))
+	_, _ = h.Write([]byte(name)) // hash.Hash.Write never returns an error
 	idx := h.Sum32() % 12
 	if idx < 6 {
 		return color.New(color.Attribute(31 + idx)) // FgRed(31) through FgCyan(36)

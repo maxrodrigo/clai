@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 
 	"google.golang.org/genai"
@@ -13,6 +14,18 @@ import (
 	"github.com/maxrodrigo/clai/internal/config"
 	"github.com/maxrodrigo/clai/internal/provider"
 )
+
+// clampInt32 converts n to int32, capping at the int32 range. The genai SDK
+// takes int32 where clai's config uses int.
+func clampInt32(n int) int32 {
+	if n > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	if n < math.MinInt32 {
+		return math.MinInt32
+	}
+	return int32(n)
+}
 
 func init() {
 	provider.Register("gemini", func(pc config.ProviderConfig) provider.Provider {
@@ -139,7 +152,7 @@ func (p *Provider) buildConfig(req provider.Request) *genai.GenerateContentConfi
 		cfg.Temperature = genai.Ptr[float32](float32(*req.Temperature))
 	}
 	if req.MaxTokens > 0 {
-		cfg.MaxOutputTokens = int32(req.MaxTokens)
+		cfg.MaxOutputTokens = clampInt32(req.MaxTokens)
 	}
 	if req.JSONMode {
 		cfg.ResponseMIMEType = "application/json"
@@ -147,7 +160,7 @@ func (p *Provider) buildConfig(req provider.Request) *genai.GenerateContentConfi
 	if req.Think {
 		budget := int32(defaultThinkBudget)
 		if req.ThinkBudget > 0 {
-			budget = int32(req.ThinkBudget)
+			budget = clampInt32(req.ThinkBudget)
 		}
 		cfg.ThinkingConfig = &genai.ThinkingConfig{
 			ThinkingBudget: genai.Ptr[int32](budget),
