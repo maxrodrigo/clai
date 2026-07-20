@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -236,5 +237,52 @@ func TestCLIInlineAndFile_mutuallyExclusive(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "cannot use both") {
 		t.Errorf("expected 'cannot use both' error, got: %v", err)
+	}
+}
+
+func TestCLIConversationInvalidName(t *testing.T) {
+	var errBuf bytes.Buffer
+	out := &output.Output{Stdout: &bytes.Buffer{}, Stderr: &errBuf}
+	in := &source.Input{Stdin: strings.NewReader("test"), Stderr: &bytes.Buffer{}}
+
+	cmd := NewRoot(out, in)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"-c", "INVALID NAME!", "-e", "hello"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid conversation name")
+	}
+	var ue *UsageError
+	if !errors.As(err, &ue) {
+		t.Errorf("expected UsageError, got: %T: %v", err, err)
+	}
+}
+
+func TestCLIConversationReservedTokensPassThrough(t *testing.T) {
+	// Reserved tokens "-" and "+" should not trigger validation errors.
+	// They'll fail downstream (e.g. no conversations found), but not at validation.
+	dir := t.TempDir()
+	t.Setenv("CLAI_CONVERSATIONS_DIR", dir)
+	t.Setenv("CLAI_MODEL", "openai/gpt-4o")
+
+	for _, token := range []string{"-", "+"} {
+		t.Run(token, func(t *testing.T) {
+			var errBuf bytes.Buffer
+			out := &output.Output{Stdout: &bytes.Buffer{}, Stderr: &errBuf}
+			in := &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}}
+
+			cmd := NewRoot(out, in)
+			cmd.SetErr(&errBuf)
+			cmd.SetArgs([]string{"-c", token, "-e", "hello"})
+			err := cmd.Execute()
+			// Will error downstream (no conversations for "-", or no input for "+"),
+			// but must NOT be a UsageError from validation.
+			if err != nil {
+				var ue *UsageError
+				if errors.As(err, &ue) {
+					t.Errorf("reserved token %q should not produce UsageError, got: %v", token, err)
+				}
+			}
+		})
 	}
 }
