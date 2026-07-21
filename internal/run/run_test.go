@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -174,6 +177,66 @@ func TestPersistTurnStoresEmptySystemLineWithModel(t *testing.T) {
 	}
 	if msgs[0].Model != "openai/gpt-4.1" {
 		t.Errorf("expected system model 'openai/gpt-4.1', got %q", msgs[0].Model)
+	}
+}
+
+func TestPersistTurnConcurrentTurnsRemainAdjacent(t *testing.T) {
+	t.Setenv("CLAI_CONVERSATIONS_DIR", t.TempDir())
+	conv, err := conversation.Open("concurrent-turns")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := &Runtime{Output: &output.Output{Stdout: io.Discard, Stderr: io.Discard}}
+
+	const turns = 200
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < turns; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			content := fmt.Sprintf("turn-%d", i)
+			persistTurn(rt, conv, false, "", "", content, provider.Response{Content: content})
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+
+	msgs, skipped, err := conv.Messages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if skipped != 0 {
+		t.Fatalf("skipped = %d, want 0", skipped)
+	}
+	if len(msgs) != turns*2 {
+		t.Fatalf("got %d messages, want %d", len(msgs), turns*2)
+	}
+	for i := 0; i < len(msgs); i += 2 {
+		if msgs[i].Role != "user" || msgs[i+1].Role != "assistant" || msgs[i].Content != msgs[i+1].Content {
+			t.Fatalf("messages %d and %d are not an atomic turn: %+v, %+v", i, i+1, msgs[i], msgs[i+1])
+		}
+	}
+}
+
+func TestPersistTurnWarnsOnPersistenceError(t *testing.T) {
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	if err := os.WriteFile(blocker, []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CLAI_CONVERSATIONS_DIR", filepath.Join(blocker, "conversations"))
+	conv, err := conversation.Open("unwritable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stderr bytes.Buffer
+	rt := &Runtime{Output: &output.Output{Stdout: io.Discard, Stderr: &stderr}}
+
+	persistTurn(rt, conv, false, "", "", "question", provider.Response{Content: "answer"})
+
+	if got := stderr.String(); !strings.Contains(got, "warning: conversation not saved:") {
+		t.Fatalf("missing persistence warning: %q", got)
 	}
 }
 

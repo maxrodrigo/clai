@@ -151,7 +151,7 @@ func newConversationRemoveCmd(out *output.Output) *cobra.Command {
 				}
 				n, err := conversation.RemoveOlderThan(age)
 				if err != nil {
-					return err
+					return fmt.Errorf("removed %d conversation(s), cleanup incomplete: %w", n, err)
 				}
 				out.PrintSuccess("removed %d conversation(s)\n", n)
 				return nil
@@ -175,22 +175,32 @@ func newConversationRemoveCmd(out *output.Output) *cobra.Command {
 	return cmd
 }
 
+// day is the duration of one day (24 hours).
+const day = 24 * time.Hour
+
+// maxDays is the maximum number of days that can be represented without overflow.
+const maxDays = int64(1<<63-1) / int64(day)
+
 // parseDuration supports "Nd" as days shorthand plus standard Go durations.
-// Rejects negative values.
+// Rejects negative values and day counts that would overflow time.Duration.
 func parseDuration(s string) (time.Duration, error) {
-	var d time.Duration
-	if strings.HasSuffix(s, "d") {
-		days, err := strconv.Atoi(strings.TrimSuffix(s, "d"))
+	if daysText, ok := strings.CutSuffix(s, "d"); ok {
+		days, err := strconv.ParseInt(daysText, 10, 64)
 		if err != nil {
 			return 0, err
 		}
-		d = time.Duration(days) * 24 * time.Hour
-	} else {
-		var err error
-		d, err = time.ParseDuration(s)
-		if err != nil {
-			return 0, err
+		if days < 0 {
+			return 0, fmt.Errorf("duration must be positive")
 		}
+		if days > maxDays {
+			return 0, fmt.Errorf("duration is too large")
+		}
+		return time.Duration(days) * day, nil
+	}
+
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, err
 	}
 	if d < 0 {
 		return 0, fmt.Errorf("duration must be positive")

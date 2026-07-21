@@ -110,9 +110,23 @@ func Open(name string) (*Conversation, error) {
 	}, nil
 }
 
-// Append writes a message as a JSON line. Creates the directory and file on
-// first call. Uses O_APPEND with flock for safe concurrent writes.
-func (c *Conversation) Append(m Message) error {
+// Append writes messages as JSON lines. Creates the directory and file on the
+// first non-empty call. Uses O_APPEND with flock for safe concurrent writes.
+func (c *Conversation) Append(messages ...Message) error {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	var batch []byte
+	for _, message := range messages {
+		data, err := json.Marshal(message)
+		if err != nil {
+			return fmt.Errorf("marshal message: %w", err)
+		}
+		batch = append(batch, data...)
+		batch = append(batch, '\n')
+	}
+
 	if err := os.MkdirAll(filepath.Dir(c.path), 0o700); err != nil {
 		return fmt.Errorf("create conversation dir: %w", err)
 	}
@@ -126,13 +140,7 @@ func (c *Conversation) Append(m Message) error {
 		return fmt.Errorf("flock conversation %s: %w", c.Name, err)
 	}
 
-	data, err := json.Marshal(m)
-	if err != nil {
-		return fmt.Errorf("marshal message: %w", err)
-	}
-	data = append(data, '\n')
-
-	if _, err := f.Write(data); err != nil {
+	if _, err := f.Write(batch); err != nil {
 		return fmt.Errorf("write conversation %s: %w", c.Name, err)
 	}
 	return nil
@@ -359,13 +367,17 @@ func Rename(oldName, newName string) error {
 	oldPath := filepath.Join(dir, oldName+fileExt)
 	newPath := filepath.Join(dir, newName+fileExt)
 
-	if _, err := os.Stat(oldPath); err != nil {
-		return fmt.Errorf("rename conversation: source %q not found", oldName)
+	if err := os.Link(oldPath, newPath); err != nil {
+		return fmt.Errorf("rename conversation %q to %q: %w", oldName, newName, err)
 	}
-	if _, err := os.Stat(newPath); err == nil {
-		return fmt.Errorf("rename conversation: target %q already exists", newName)
+	if err := os.Remove(oldPath); err != nil {
+		renameErr := fmt.Errorf("rename conversation %q to %q: remove source: %w", oldName, newName, err)
+		if rollbackErr := os.Remove(newPath); rollbackErr != nil {
+			return errors.Join(renameErr, fmt.Errorf("rollback rename conversation %q to %q: remove target: %w", oldName, newName, rollbackErr))
+		}
+		return renameErr
 	}
-	return os.Rename(oldPath, newPath)
+	return nil
 }
 
 // Remove deletes a conversation file.
@@ -394,19 +406,23 @@ func RemoveOlderThan(age time.Duration) (int, error) {
 
 	cutoff := time.Now().Add(-age)
 	var removed int
+	var errs []error
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), fileExt) {
 			continue
 		}
 		info, err := e.Info()
 		if err != nil {
+			errs = append(errs, fmt.Errorf("inspect conversation %q: %w", e.Name(), err))
 			continue
 		}
 		if info.ModTime().Before(cutoff) {
-			if err := os.Remove(filepath.Join(dir, e.Name())); err == nil {
-				removed++
+			if err := os.Remove(filepath.Join(dir, e.Name())); err != nil {
+				errs = append(errs, fmt.Errorf("remove conversation %q: %w", e.Name(), err))
+				continue
 			}
+			removed++
 		}
 	}
-	return removed, nil
+	return removed, errors.Join(errs...)
 }

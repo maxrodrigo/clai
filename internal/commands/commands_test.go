@@ -2,10 +2,15 @@ package commands
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -22,6 +27,53 @@ import (
 	_ "github.com/maxrodrigo/clai/internal/provider/bedrock"
 	_ "github.com/maxrodrigo/clai/internal/provider/openai"
 )
+
+// cleanupTargetEnv names the env var the parent passes to the child subprocess
+// containing the absolute path to the pre-created test fixture directory.
+const cleanupTargetEnv = "CLAI_TEST_CLEANUP_TARGET"
+
+const markerFileName = ".clai-test-marker"
+const markerContent = "clai-cleanup-test-fixture"
+const fixtureDirPrefix = "clai-command-cleanup-test-"
+
+// validateCleanupTarget checks the target passed to a subprocess helper is safe.
+func validateCleanupTarget(t *testing.T) string {
+	t.Helper()
+	target := os.Getenv(cleanupTargetEnv)
+	if target == "" {
+		t.Fatal("child: CLAI_TEST_CLEANUP_TARGET not set")
+	}
+	if !filepath.IsAbs(target) {
+		t.Fatalf("child: target %q is not absolute", target)
+	}
+	parent := filepath.Dir(target)
+	tmpDir := os.TempDir()
+	cleanParent, _ := filepath.EvalSymlinks(parent)
+	cleanTmp, _ := filepath.EvalSymlinks(tmpDir)
+	if cleanParent != cleanTmp {
+		t.Fatalf("child: target parent %q is not system temp dir %q", parent, tmpDir)
+	}
+	base := filepath.Base(target)
+	if !strings.HasPrefix(base, fixtureDirPrefix) {
+		t.Fatalf("child: target basename %q does not start with %q", base, fixtureDirPrefix)
+	}
+	marker := filepath.Join(target, markerFileName)
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("child: read marker: %v", err)
+	}
+	if string(data) != markerContent {
+		t.Fatalf("child: marker content = %q, want %q", data, markerContent)
+	}
+	info, err := os.Stat(marker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o444 {
+		t.Fatalf("child: marker perms = %o, want 0444", info.Mode().Perm())
+	}
+	return target
+}
 
 // TestMain isolates the environment from the developer's real configuration,
 // then registers prompt and strategy sources against the in-repo data
@@ -424,6 +476,117 @@ func TestCLIConversationRemoveOlderThan(t *testing.T) {
 	}
 }
 
+func TestCLIConversationRemoveOlderThanReportsIncompleteCleanup(t *testing.T) {
+	if os.Getenv(cleanupTargetEnv) != "" {
+		target := validateCleanupTarget(t)
+		t.Setenv("CLAI_CONVERSATIONS_DIR", target)
+		assertCLIConversationRemoveOlderThanReportsIncompleteCleanup(t)
+		return
+	}
+
+	dir, err := os.MkdirTemp(os.TempDir(), fixtureDirPrefix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(dir, 0o700)
+		_ = os.RemoveAll(dir)
+	})
+	t.Setenv("CLAI_CONVERSATIONS_DIR", dir)
+
+	seedConversation(t, "undeletable")
+	path := filepath.Join(dir, "undeletable.jsonl")
+	old := time.Now().Add(-40 * 24 * time.Hour)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write marker file before locking permissions.
+	if err := os.WriteFile(filepath.Join(dir, markerFileName), []byte(markerContent), 0o444); err != nil {
+		t.Fatal(err)
+	}
+
+	helperPath := ""
+	if os.Geteuid() == 0 {
+		helperPath = copyCommandTestBinary(t, dir)
+	}
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	if helperPath != "" {
+		runCommandCleanupTestAsUnprivileged(t, helperPath, dir)
+		return
+	}
+	assertCLIConversationRemoveOlderThanReportsIncompleteCleanup(t)
+}
+
+func assertCLIConversationRemoveOlderThanReportsIncompleteCleanup(t *testing.T) {
+	t.Helper()
+	out := &output.Output{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}
+	in := &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}}
+	cmd := NewRoot(out, in)
+	cmd.SetArgs([]string{"conversation", "remove", "--older-than", "30d"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("conversation remove --older-than succeeded after incomplete cleanup")
+	}
+	const want = "removed 0 conversation(s), cleanup incomplete:"
+	if !strings.Contains(err.Error(), want) {
+		t.Errorf("error = %q, want %q", err, want)
+	}
+}
+
+func copyCommandTestBinary(t *testing.T, dir string) string {
+	t.Helper()
+
+	src, err := os.Open(os.Args[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer src.Close()
+
+	path := filepath.Join(dir, "cleanup-test-helper")
+	dst, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o555)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.Copy(dst, src); err != nil {
+		_ = dst.Close()
+		t.Fatal(err)
+	}
+	if err := dst.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func runCommandCleanupTestAsUnprivileged(t *testing.T, helperPath, dir string) {
+	t.Helper()
+
+	env := []string{cleanupTargetEnv + "=" + dir}
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "CLAI_CONVERSATIONS_DIR=") {
+			continue
+		}
+		if strings.HasPrefix(e, cleanupTargetEnv+"=") {
+			continue
+		}
+		env = append(env, e)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, helperPath, "-test.run=^"+t.Name()+"$", "-test.count=1")
+	cmd.Dir = dir
+	cmd.Env = env
+	cmd.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{
+		Uid: 65534, Gid: 65534, NoSetGroups: true,
+	}}
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("unprivileged cleanup helper failed: %v\n%s", err, output)
+	}
+}
+
 func TestCLIConversationShowMissingErrors(t *testing.T) {
 	t.Setenv("CLAI_CONVERSATIONS_DIR", t.TempDir())
 	out := &output.Output{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}
@@ -465,5 +628,25 @@ func TestParseDurationRejectsNegative(t *testing.T) {
 	}
 	if d, err := parseDuration("30d"); err != nil || d != 30*24*time.Hour {
 		t.Errorf("parseDuration(30d) = %v, %v", d, err)
+	}
+}
+
+func TestParseDurationBoundary(t *testing.T) {
+	// maxDays is the largest whole-day count that fits in time.Duration.
+	const maxDays = int64(1<<63-1) / int64(24*time.Hour)
+
+	// Maximum representable days must succeed.
+	want := time.Duration(maxDays) * 24 * time.Hour
+	got, err := parseDuration(strconv.FormatInt(maxDays, 10) + "d")
+	if err != nil {
+		t.Fatalf("parseDuration(maxDays) failed: %v", err)
+	}
+	if got != want {
+		t.Errorf("parseDuration(maxDays) = %v, want %v", got, want)
+	}
+
+	// One day beyond the max must fail.
+	if _, err := parseDuration(strconv.FormatInt(maxDays+1, 10) + "d"); err == nil {
+		t.Error("parseDuration(maxDays+1) should fail")
 	}
 }

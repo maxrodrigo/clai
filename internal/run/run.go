@@ -374,11 +374,8 @@ func persistTurn(rt *Runtime, conv *conversation.Conversation, storeSystem bool,
 		conversation.Message{Role: "user", Content: user, TS: now},
 		conversation.Message{Role: "assistant", Content: resp.Content, TS: now, TokensIn: resp.InputTokens, TokensOut: resp.OutputTokens},
 	)
-	for _, m := range pending {
-		if err := conv.Append(m); err != nil {
-			rt.Output.PrintWarning("warning: conversation not saved: %s\n", err)
-			return
-		}
+	if err := conv.Append(pending...); err != nil {
+		rt.Output.PrintWarning("warning: conversation not saved: %s\n", err)
 	}
 }
 
