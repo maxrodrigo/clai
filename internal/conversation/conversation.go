@@ -90,7 +90,8 @@ func scanDir() (string, []os.DirEntry, error) {
 }
 
 // Open returns a handle to a named conversation. The file is NOT created
-// until a write (Append) occurs. The directory IS created if missing.
+// until a write (Append) occurs; the directory IS created if missing.
+// IsNew reports whether the file existed at open time.
 func Open(name string) (*Conversation, error) {
 	if err := ValidateName(name); err != nil {
 		return nil, err
@@ -99,9 +100,12 @@ func Open(name string) (*Conversation, error) {
 	if err != nil {
 		return nil, err
 	}
+	path := filepath.Join(dir, name+fileExt)
+	_, statErr := os.Stat(path)
 	return &Conversation{
-		Name: name,
-		path: filepath.Join(dir, name+fileExt),
+		Name:  name,
+		path:  path,
+		isNew: errors.Is(statErr, fs.ErrNotExist),
 	}, nil
 }
 
@@ -326,12 +330,13 @@ func firstUserPreview(msgs []Message) string {
 		if m.Role != "user" {
 			continue
 		}
-		s := strings.TrimSpace(m.Content)
-		if len(s) <= 48 {
+		s := strings.Join(strings.Fields(m.Content), " ") // collapse whitespace
+		runes := []rune(s)
+		if len(runes) <= 48 {
 			return s
 		}
-		// Truncate at word boundary.
-		s = s[:48]
+		// Truncate at a word boundary, rune-safe for multibyte input.
+		s = string(runes[:48])
 		if i := strings.LastIndexByte(s, ' '); i > 0 {
 			s = s[:i]
 		}
@@ -342,6 +347,9 @@ func firstUserPreview(msgs []Message) string {
 
 // Rename renames a conversation file from oldName to newName.
 func Rename(oldName, newName string) error {
+	if err := ValidateName(oldName); err != nil {
+		return err
+	}
 	if err := ValidateName(newName); err != nil {
 		return err
 	}
@@ -363,6 +371,9 @@ func Rename(oldName, newName string) error {
 
 // Remove deletes a conversation file.
 func Remove(name string) error {
+	if err := ValidateName(name); err != nil {
+		return err
+	}
 	dir, err := Dir()
 	if err != nil {
 		return err

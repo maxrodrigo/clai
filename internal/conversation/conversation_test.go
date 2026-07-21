@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func testDir(t *testing.T) string {
@@ -210,5 +211,62 @@ func TestRemoveOlderThan(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "recent.jsonl")); err != nil {
 		t.Error("recent should survive")
+	}
+}
+
+func TestOpenReportsNew(t *testing.T) {
+	testDir(t)
+	c, err := Open("fresh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.IsNew() {
+		t.Error("Open on a missing file should report IsNew")
+	}
+	if err := c.Append(Message{Role: "user", Content: "hi", TS: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Open("fresh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.IsNew() {
+		t.Error("Open on an existing file must not report IsNew")
+	}
+}
+
+func TestRemoveAndRenameValidateNames(t *testing.T) {
+	dir := testDir(t)
+
+	// A real file one level above the conversations dir: traversal must not reach it.
+	outside := filepath.Join(filepath.Dir(dir), "victim.jsonl")
+	if err := os.WriteFile(outside, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Remove("../victim"); err == nil {
+		t.Error("Remove must reject invalid names")
+	}
+	if _, err := os.Stat(outside); err != nil {
+		t.Error("traversal removed a file outside the conversations dir")
+	}
+	if err := Rename("../victim", "ok-name"); err == nil {
+		t.Error("Rename must reject an invalid old name")
+	}
+	if _, err := os.Stat(outside); err != nil {
+		t.Error("traversal renamed a file outside the conversations dir")
+	}
+}
+
+func TestFirstUserPreviewIsRuneSafe(t *testing.T) {
+	// One long multibyte word with no spaces: a byte-based cut at 48 lands
+	// mid-rune ("a" + 3-byte runes means byte 48 splits a rune).
+	long := "a" + strings.Repeat("€", 40)
+	got := firstUserPreview([]Message{{Role: "user", Content: long}})
+	if !utf8.ValidString(got) {
+		t.Errorf("preview is not valid UTF-8: %q", got)
+	}
+	if n := len([]rune(got)); n > 48 {
+		t.Errorf("preview too long: %d runes", n)
 	}
 }
