@@ -189,7 +189,7 @@ func Prompt(ctx context.Context, rt *Runtime, opts PromptOptions) error {
 
 	// Persist the turn to the conversation file.
 	if conv != nil {
-		storeSystem := conv.IsNew() || explicit
+		storeSystem := conv.IsNew() || len(history) == 0 || explicit
 		persistTurn(rt, conv, storeSystem, baseSystem, cfg.Model, userMessage, resp)
 		if conv.IsNew() {
 			rt.Output.PrintHint("[clai] new conversation '%s'\n", conv.Name)
@@ -385,12 +385,18 @@ func persistTurn(rt *Runtime, conv *conversation.Conversation, storeSystem bool,
 }
 
 // cleanupNewConversation removes the reserved-but-empty file left behind when
-// a brand-new conversation's first model call fails. No-op for existing
-// conversations or nil.
+// cleanupNewConversation removes the reserved-but-empty file left behind
+// when a brand-new conversation's first model call fails. It only removes
+// empty files: if another process persisted turns meanwhile, the data wins.
 func cleanupNewConversation(conv *conversation.Conversation) {
-	if conv != nil && conv.IsNew() {
-		_ = os.Remove(conv.Path())
+	if conv == nil || !conv.IsNew() {
+		return
 	}
+	info, err := os.Stat(conv.Path())
+	if err != nil || info.Size() > 0 {
+		return
+	}
+	_ = os.Remove(conv.Path())
 }
 
 // explicitPrompt reports whether the user provided a prompt on this
