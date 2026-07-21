@@ -424,3 +424,47 @@ func TestCLIConversationRemoveOlderThan(t *testing.T) {
 		t.Errorf("recent should survive: %v", err)
 	}
 }
+
+func TestCLIConversationShowMissingErrors(t *testing.T) {
+	t.Setenv("CLAI_CONVERSATIONS_DIR", t.TempDir())
+	out := &output.Output{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}
+	in := &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}}
+
+	cmd := NewRoot(out, in)
+	cmd.SetArgs([]string{"conversation", "show", "does-not-exist"})
+	if err := cmd.Execute(); err == nil {
+		t.Error("show on a missing conversation should error, consistent with remove/rename")
+	}
+}
+
+func TestCLIConversationRemoveNameAndOlderThanConflict(t *testing.T) {
+	t.Setenv("CLAI_CONVERSATIONS_DIR", t.TempDir())
+	seedConversation(t, "keep-me")
+
+	out := &output.Output{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}
+	in := &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}}
+
+	cmd := NewRoot(out, in)
+	cmd.SetArgs([]string{"conversation", "remove", "keep-me", "--older-than", "30d"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Error("remove with both a name and --older-than should be a usage error")
+	}
+	var ue *UsageError
+	if !errors.As(err, &ue) {
+		t.Errorf("want UsageError, got %T: %v", err, err)
+	}
+}
+
+func TestParseDurationRejectsNegative(t *testing.T) {
+	// --older-than -30d would put the cutoff in the future and remove
+	// every conversation.
+	for _, s := range []string{"-30d", "-720h"} {
+		if _, err := parseDuration(s); err == nil {
+			t.Errorf("parseDuration(%q) should error", s)
+		}
+	}
+	if d, err := parseDuration("30d"); err != nil || d != 30*24*time.Hour {
+		t.Errorf("parseDuration(30d) = %v, %v", d, err)
+	}
+}

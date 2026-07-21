@@ -88,6 +88,9 @@ func newConversationShowCmd(out *output.Output) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if c.IsNew() {
+				return fmt.Errorf("no conversation %q", args[0])
+			}
 			msgs, _, err := c.Messages()
 			if err != nil {
 				return err
@@ -132,6 +135,9 @@ func newConversationRemoveCmd(out *output.Output) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			olderThan, _ := cmd.Flags().GetString("older-than")
 
+			if olderThan != "" && len(args) > 0 {
+				return &UsageError{Msg: "provide either a conversation name or --older-than, not both"}
+			}
 			if olderThan != "" {
 				age, err := parseDuration(olderThan)
 				if err != nil {
@@ -161,14 +167,25 @@ func newConversationRemoveCmd(out *output.Output) *cobra.Command {
 }
 
 // parseDuration parses a duration string. Supports "Nd" as days shorthand
-// in addition to standard Go durations (e.g. "720h").
+// in addition to standard Go durations (e.g. "720h"). Negative durations
+// are rejected: a future cutoff would remove every conversation.
 func parseDuration(s string) (time.Duration, error) {
+	var d time.Duration
 	if strings.HasSuffix(s, "d") {
 		days, err := strconv.Atoi(strings.TrimSuffix(s, "d"))
 		if err != nil {
 			return 0, err
 		}
-		return time.Duration(days) * 24 * time.Hour, nil
+		d = time.Duration(days) * 24 * time.Hour
+	} else {
+		var err error
+		d, err = time.ParseDuration(s)
+		if err != nil {
+			return 0, err
+		}
 	}
-	return time.ParseDuration(s)
+	if d < 0 {
+		return 0, fmt.Errorf("duration must be positive")
+	}
+	return d, nil
 }
