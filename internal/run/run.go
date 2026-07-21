@@ -20,6 +20,10 @@ import (
 	"github.com/maxrodrigo/clai/internal/strategy"
 )
 
+// errNoModel is returned when no model is configured via -m, CLAI_MODEL,
+// or prompt frontmatter.
+var errNoModel = errors.New("no model configured (set -m, CLAI_MODEL, or model in prompt frontmatter)")
+
 // PromptOptions holds the resolved prompt specification and runtime flags.
 type PromptOptions struct {
 	PromptName   string   // Named prompt (first positional arg)
@@ -77,7 +81,7 @@ func Prompt(ctx context.Context, rt *Runtime, opts PromptOptions) error {
 	}
 
 	// Binary input check: conversation mode requires text-only input.
-	if opts.Conversation != "" && input != nil && bytes.ContainsRune(input, 0) {
+	if opts.Conversation != "" && bytes.ContainsRune(input, 0) {
 		return errors.New("binary input not supported in conversation mode")
 	}
 
@@ -117,7 +121,7 @@ func Prompt(ctx context.Context, rt *Runtime, opts PromptOptions) error {
 
 	// Deferred model check: in conversation mode the model may come from history.
 	if cfg.Model == "" {
-		return errors.New("no model configured (set -m, CLAI_MODEL, or model in prompt frontmatter)")
+		return errNoModel
 	}
 
 	// Apply strategy/schema decorations to the effective system prompt.
@@ -232,7 +236,7 @@ func resolveConfig(opts PromptOptions) (*config.Config, *prompt.Prompt, error) {
 
 	// In conversation mode, model may be inherited from history — defer the check.
 	if cfg.Model == "" && opts.Conversation == "" {
-		return nil, nil, errors.New("no model configured (set -m, CLAI_MODEL, or model in prompt frontmatter)")
+		return nil, nil, errNoModel
 	}
 
 	return cfg, p, nil

@@ -414,3 +414,23 @@ func TestBuildBody_messages(t *testing.T) {
 		t.Errorf("Messages[2] = %+v, want user/Who made it?", body.Messages[2])
 	}
 }
+
+func TestBuildBody_nonAssistantRoleNormalizesToUser(t *testing.T) {
+	body := buildBody(provider.Request{
+		Messages: []provider.Message{
+			{Role: "user", Content: "hi"},
+			{Role: "assistant", Content: "hello"},
+			{Role: "tool", Content: "result"},
+		},
+	})
+
+	if len(body.Messages) != 3 {
+		t.Fatalf("len(Messages) = %d, want 3", len(body.Messages))
+	}
+	if body.Messages[2].Role != "user" {
+		t.Errorf("Messages[2].Role = %q, want %q (non-assistant roles normalize to user)", body.Messages[2].Role, "user")
+	}
+	if body.Messages[2].Content[0].Text != "result" {
+		t.Errorf("Messages[2].Content = %q, want %q", body.Messages[2].Content[0].Text, "result")
+	}
+}

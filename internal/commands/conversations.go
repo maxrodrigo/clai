@@ -117,6 +117,12 @@ func newConversationRenameCmd(out *output.Output) *cobra.Command {
 		Short: "Rename a conversation",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := conversation.ValidateName(args[0]); err != nil {
+				return &UsageError{Msg: err.Error()}
+			}
+			if err := conversation.ValidateName(args[1]); err != nil {
+				return &UsageError{Msg: err.Error()}
+			}
 			if err := conversation.Rename(args[0], args[1]); err != nil {
 				return err
 			}
@@ -153,6 +159,9 @@ func newConversationRemoveCmd(out *output.Output) *cobra.Command {
 
 			if len(args) == 0 {
 				return &UsageError{Msg: "provide a conversation name or --older-than"}
+			}
+			if err := conversation.ValidateName(args[0]); err != nil {
+				return &UsageError{Msg: err.Error()}
 			}
 			if err := conversation.Remove(args[0]); err != nil {
 				return err

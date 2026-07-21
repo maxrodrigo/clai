@@ -16,6 +16,10 @@ import (
 
 const fileExt = ".jsonl"
 
+// maxNewRetries caps the number of O_EXCL retry attempts in New() to prevent
+// infinite loops if the filesystem consistently races with another process.
+const maxNewRetries = 5
+
 // Message is a single turn persisted as one JSON line.
 type Message struct {
 	Role      string    `json:"role"`
@@ -170,6 +174,7 @@ func (c *Conversation) Messages() ([]Message, int, error) {
 
 // New creates a new conversation from free-form user input.
 // The input is slugified and deduplicated with numeric suffixes if needed.
+// If a race on O_EXCL occurs, it rescans and retries up to maxNewRetries times.
 func New(input string) (*Conversation, error) {
 	base := Slugify(input)
 	dir, err := ensureDir()
@@ -177,24 +182,31 @@ func New(input string) (*Conversation, error) {
 		return nil, err
 	}
 
-	name, err := nextFreeName(dir, base)
-	if err != nil {
-		return nil, err
+	for attempt := 0; attempt < maxNewRetries; attempt++ {
+		name, err := nextFreeName(dir, base)
+		if err != nil {
+			return nil, err
+		}
+
+		path := filepath.Join(dir, name+fileExt)
+		// O_EXCL guards against races: only one process wins.
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err != nil {
+			if errors.Is(err, fs.ErrExist) {
+				continue // another process won; rescan and retry
+			}
+			return nil, fmt.Errorf("create conversation %s: %w", name, err)
+		}
+		_ = f.Close()
+
+		return &Conversation{
+			Name:  name,
+			path:  path,
+			isNew: true,
+		}, nil
 	}
 
-	path := filepath.Join(dir, name+fileExt)
-	// O_EXCL guards against races: only one process wins.
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-	if err != nil {
-		return nil, fmt.Errorf("create conversation %s: %w", name, err)
-	}
-	_ = f.Close()
-
-	return &Conversation{
-		Name:  name,
-		path:  path,
-		isNew: true,
-	}, nil
+	return nil, fmt.Errorf("create conversation: failed after %d attempts (name contention on %q)", maxNewRetries, base)
 }
 
 // nextFreeName scans dir for the next available name based on base slug.

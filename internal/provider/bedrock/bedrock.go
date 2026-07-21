@@ -134,8 +134,12 @@ func buildBody(req provider.Request) converseRequest {
 	system, turns := req.Turns()
 	var body converseRequest
 	for _, t := range turns {
+		role := "user"
+		if t.Role == "assistant" {
+			role = "assistant"
+		}
 		body.Messages = append(body.Messages, converseMessage{
-			Role:    t.Role,
+			Role:    role,
 			Content: []converseTextBlock{{Text: t.Content}},
 		})
 	}
