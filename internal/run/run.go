@@ -90,7 +90,7 @@ func Prompt(ctx context.Context, rt *Runtime, opts PromptOptions) error {
 		return err
 	}
 
-	// --- Conversation resolution ---
+	// Resolve conversation handle and history.
 	conv, history, err := resolveConversation(rt, opts, userMessage)
 	if err != nil {
 		return err
@@ -360,7 +360,7 @@ func resolveConversation(rt *Runtime, opts PromptOptions, userMessage string) (*
 // buildConversationMessages constructs the full multi-turn message list for the API.
 // The system prompt is placed first, followed by historical turns, then the new user message.
 func buildConversationMessages(system string, history []conversation.Message, user string) []provider.Message {
-	var msgs []provider.Message
+	msgs := make([]provider.Message, 0, len(history)+2)
 	if system != "" {
 		msgs = append(msgs, provider.Message{Role: "system", Content: system})
 	}
@@ -396,7 +396,6 @@ func persistTurn(rt *Runtime, conv *conversation.Conversation, storeSystem bool,
 	}
 }
 
-// cleanupNewConversation removes the reserved-but-empty file left behind when
 // cleanupNewConversation removes the reserved-but-empty file left behind
 // when a brand-new conversation's first model call fails. It only removes
 // empty files: if another process persisted turns meanwhile, the data wins.
