@@ -322,22 +322,16 @@ func resolveConversation(rt *Runtime, opts PromptOptions, userMessage string) (*
 	switch opts.Conversation {
 	case "-":
 		conv, err = conversation.Latest()
-		if err != nil {
-			return nil, nil, err
-		}
 	case "+":
 		if opts.DryRun {
 			return nil, nil, nil
 		}
 		conv, err = conversation.New(userMessage)
-		if err != nil {
-			return nil, nil, err
-		}
 	default:
 		conv, err = conversation.Open(opts.Conversation)
-		if err != nil {
-			return nil, nil, err
-		}
+	}
+	if err != nil {
+		return nil, nil, err
 	}
 
 	history, skipped, err := conv.Messages()

@@ -223,9 +223,6 @@ func Latest() (*Conversation, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(entries) == 0 {
-		return nil, errors.New("no conversations found")
-	}
 
 	var best os.DirEntry
 	var bestTime time.Time
@@ -291,14 +288,7 @@ func List() ([]Summary, error) {
 	}
 
 	slices.SortFunc(sums, func(a, b Summary) int {
-		// Descending by ModTime.
-		if a.ModTime.After(b.ModTime) {
-			return -1
-		}
-		if a.ModTime.Before(b.ModTime) {
-			return 1
-		}
-		return 0
+		return b.ModTime.Compare(a.ModTime) // descending
 	})
 	return sums, nil
 }
