@@ -142,8 +142,23 @@ func TestReadPathsDoNotCreateDirectory(t *testing.T) {
 	if _, err := Latest(); err == nil {
 		t.Error("Latest() on missing dir should error")
 	}
+	// Open must not create the directory either.
+	c, err := Open("some-name")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := os.Stat(missing); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("read paths created directory: %v", err)
+		t.Errorf("Open created directory: %v", err)
+	}
+	// But Append does create both the directory and the file.
+	if err := c.Append(Message{Role: "user", Content: "hi", TS: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(missing); err != nil {
+		t.Errorf("Append did not create directory: %v", err)
+	}
+	if _, err := os.Stat(c.Path()); err != nil {
+		t.Errorf("Append did not create file: %v", err)
 	}
 }
 

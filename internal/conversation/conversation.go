@@ -89,14 +89,14 @@ func scanDir() (string, []os.DirEntry, error) {
 	return dir, entries, nil
 }
 
-// Open returns a handle to a named conversation. The file is NOT created
-// until a write (Append) occurs; the directory IS created if missing.
+// Open returns a handle to a named conversation. Neither the file nor the
+// directory is created; the first Append creates both if needed.
 // IsNew reports whether the file existed at open time.
 func Open(name string) (*Conversation, error) {
 	if err := ValidateName(name); err != nil {
 		return nil, err
 	}
-	dir, err := ensureDir()
+	dir, err := Dir()
 	if err != nil {
 		return nil, err
 	}
@@ -110,8 +110,13 @@ func Open(name string) (*Conversation, error) {
 }
 
 // Append writes a message as a single JSON line to the conversation file.
-// Uses O_CREATE|O_WRONLY|O_APPEND with an exclusive flock for safe concurrent writes.
+// Creates the directory and file on first call. Uses O_APPEND with an
+// exclusive flock for safe concurrent writes.
 func (c *Conversation) Append(m Message) error {
+	// Ensure the directory exists on the first write.
+	if err := os.MkdirAll(filepath.Dir(c.path), 0o700); err != nil {
+		return fmt.Errorf("create conversation dir: %w", err)
+	}
 	f, err := os.OpenFile(c.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return fmt.Errorf("append conversation %s: %w", c.Name, err)
