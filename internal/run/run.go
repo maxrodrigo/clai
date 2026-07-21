@@ -39,6 +39,9 @@ type PromptOptions struct {
 type Runtime struct {
 	Output *output.Output
 	Input  *source.Input
+	// Provider overrides provider lookup for testing. When nil, the provider
+	// is resolved from config via provider.Get.
+	Provider provider.Provider
 }
 
 // Prompt implements the root command: clai [flags] <prompt> [files...].
@@ -250,15 +253,20 @@ func buildMessages(p *prompt.Prompt, opts PromptOptions, input []byte) (systemPr
 // executeModel handles provider creation, streaming decision, spinner, and model call.
 // Returns the response, whether streaming was used, and any error.
 func executeModel(ctx context.Context, rt *Runtime, cfg *config.Config, req provider.Request, hasSchema bool) (provider.Response, bool, error) {
-	prov, err := provider.Get(cfg.Model, cfg)
-	if err != nil {
-		return provider.Response{}, false, err
+	prov := rt.Provider
+	if prov == nil {
+		var err error
+		prov, err = provider.Get(cfg.Model, cfg)
+		if err != nil {
+			return provider.Response{}, false, err
+		}
 	}
 
 	stream := rt.Output.IsStdoutTerminal() && !hasSchema
 
 	spinner := rt.Output.NewSpinner("thinking")
 	var resp provider.Response
+	var err error
 	if stream {
 		resp, err = prov.CompleteStream(ctx, req, output.NewSpinnerWriter(rt.Output.Stdout, spinner))
 	} else {

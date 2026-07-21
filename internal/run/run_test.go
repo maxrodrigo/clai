@@ -3,6 +3,7 @@ package run
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -305,5 +306,98 @@ func TestPromptConversationBinaryInputRejected(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "binary input") {
 		t.Errorf("expected 'binary input' error, got: %v", err)
+	}
+}
+
+func setupFakeConversationTest(t *testing.T) (*fakeProviderImpl, *Runtime, string) {
+	t.Helper()
+	convDir := t.TempDir()
+	t.Setenv("CLAI_CONVERSATIONS_DIR", convDir)
+	t.Setenv("CLAI_MODEL", "fake/test-model")
+
+	fake := &fakeProviderImpl{}
+	var outBuf, errBuf bytes.Buffer
+	rt := &Runtime{
+		Output:   &output.Output{Stdout: &outBuf, Stderr: &errBuf},
+		Input:    &source.Input{Stdin: strings.NewReader(""), Stderr: &errBuf},
+		Provider: fake,
+	}
+	return fake, rt, convDir
+}
+
+func TestPromptConversationPersistsTurn(t *testing.T) {
+	fake, rt, _ := setupFakeConversationTest(t)
+	fake.response = provider.Response{Content: "answer1", InputTokens: 5, OutputTokens: 7}
+	fake.err = nil
+
+	// Turn 1: new named conversation.
+	rt.Input = &source.Input{Stdin: strings.NewReader("question one"), Stderr: rt.Output.Stderr}
+	err := Prompt(context.Background(), rt, PromptOptions{Conversation: "e2e"})
+	if err != nil {
+		t.Fatalf("turn 1: %v", err)
+	}
+
+	// Verify file exists with system + user + assistant.
+	c, _ := conversation.Open("e2e")
+	msgs, _, _ := c.Messages()
+	if len(msgs) != 3 {
+		t.Fatalf("after turn 1: got %d messages, want 3", len(msgs))
+	}
+	if msgs[0].Role != "system" || msgs[0].Model != "fake/test-model" {
+		t.Errorf("system line: %+v", msgs[0])
+	}
+	if msgs[2].Role != "assistant" || msgs[2].Content != "answer1" || msgs[2].TokensIn != 5 || msgs[2].TokensOut != 7 {
+		t.Errorf("assistant line: %+v", msgs[2])
+	}
+
+	// Stderr should contain the creation notice.
+	stderr := rt.Output.Stderr.(*bytes.Buffer).String()
+	if !strings.Contains(stderr, "[clai] new conversation 'e2e'") {
+		t.Errorf("missing creation notice in stderr: %q", stderr)
+	}
+
+	// Turn 2: continue — no new system line.
+	fake.response = provider.Response{Content: "answer2", InputTokens: 10, OutputTokens: 12}
+	rt.Output.Stderr.(*bytes.Buffer).Reset()
+	rt.Output.Stdout.(*bytes.Buffer).Reset()
+	rt.Input = &source.Input{Stdin: strings.NewReader("question two"), Stderr: rt.Output.Stderr}
+	err = Prompt(context.Background(), rt, PromptOptions{Conversation: "e2e"})
+	if err != nil {
+		t.Fatalf("turn 2: %v", err)
+	}
+
+	msgs, _, _ = c.Messages()
+	if len(msgs) != 5 {
+		t.Fatalf("after turn 2: got %d messages, want 5 (no duplicate system line)", len(msgs))
+	}
+	// Count system lines: must be exactly 1.
+	sysCount := 0
+	for _, m := range msgs {
+		if m.Role == "system" {
+			sysCount++
+		}
+	}
+	if sysCount != 1 {
+		t.Errorf("system line count = %d, want 1", sysCount)
+	}
+}
+
+func TestPromptConversationFailedFirstCallLeavesNothing(t *testing.T) {
+	fake, rt, convDir := setupFakeConversationTest(t)
+	fake.response = provider.Response{}
+	fake.err = errors.New("API unavailable")
+
+	rt.Input = &source.Input{Stdin: strings.NewReader("hello there"), Stderr: rt.Output.Stderr}
+	err := Prompt(context.Background(), rt, PromptOptions{Conversation: "+"})
+	if err == nil {
+		t.Fatal("expected error from failed model call")
+	}
+
+	// The conversations directory should contain no files.
+	entries, _ := os.ReadDir(convDir)
+	for _, e := range entries {
+		if !e.IsDir() {
+			t.Errorf("leftover file after failed first call: %s", e.Name())
+		}
 	}
 }
