@@ -8,7 +8,6 @@ import (
 	"github.com/maxrodrigo/clai/internal/provider"
 )
 
-// fakeProviderImpl implements provider.Provider for testing.
 type fakeProviderImpl struct {
 	response provider.Response
 	err      error

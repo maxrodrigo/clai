@@ -80,7 +80,6 @@ func Prompt(ctx context.Context, rt *Runtime, opts PromptOptions) error {
 		return err
 	}
 
-	// Binary input check: conversation mode requires text-only input.
 	if opts.Conversation != "" && bytes.ContainsRune(input, 0) {
 		return errors.New("binary input not supported in conversation mode")
 	}
@@ -90,41 +89,38 @@ func Prompt(ctx context.Context, rt *Runtime, opts PromptOptions) error {
 		return err
 	}
 
-	// Resolve conversation handle and history.
 	conv, history, err := resolveConversation(rt, opts, userMessage)
 	if err != nil {
 		return err
 	}
 
-	// baseSystem is the undecorated system prompt (stored in conversation).
-	// effectiveSystem gets strategy/schema decorations for the API call.
+	// baseSystem is stored in the conversation; effectiveSystem gets
+	// strategy/schema decorations for the API call.
 	//
-	// A prompt only counts as a system-prompt override when it actually
-	// became the system prompt: with no piped input, -e text is the user
-	// message (see buildMessages) and must not clobber the stored one.
+	// With no piped input, -e text is the user message (see buildMessages)
+	// and must not clobber the stored system prompt.
 	explicit := explicitPrompt(opts) && systemPrompt != ""
 	baseSystem := systemPrompt
 
-	// Inherit system prompt from conversation history if not explicitly provided.
+	// Inherit system prompt from history when not explicitly overridden.
 	if conv != nil && !explicit {
 		if lastSys := conversation.LastSystem(history); lastSys != nil {
 			baseSystem = lastSys.Content
 		}
 	}
 
-	// Inherit model from conversation history if -m not explicitly set.
+	// Inherit model from history when -m not set.
 	if conv != nil && !opts.ModelFlagSet {
 		if inherited := conversation.LastModel(history); inherited != "" {
 			cfg.Model = inherited
 		}
 	}
 
-	// Deferred model check: in conversation mode the model may come from history.
+	// Model may come from conversation history; check after inheritance.
 	if cfg.Model == "" {
 		return errNoModel
 	}
 
-	// Apply strategy/schema decorations to the effective system prompt.
 	effectiveSystem := baseSystem
 	if strat != nil {
 		effectiveSystem = strat.Apply(effectiveSystem)
@@ -165,7 +161,6 @@ func Prompt(ctx context.Context, rt *Runtime, opts PromptOptions) error {
 		JSONMode:    sch != nil,
 	}
 
-	// Multi-turn: build Messages from history.
 	if conv != nil {
 		req.Messages = buildConversationMessages(effectiveSystem, history, userMessage)
 	}
@@ -194,7 +189,6 @@ func Prompt(ctx context.Context, rt *Runtime, opts PromptOptions) error {
 		fmt.Fprintln(rt.Output.Stdout)
 	}
 
-	// Persist the turn to the conversation file.
 	if conv != nil {
 		storeSystem := conv.IsNew() || len(history) == 0 || explicit
 		persistTurn(rt, conv, storeSystem, baseSystem, cfg.Model, userMessage, resp)
@@ -210,7 +204,6 @@ func Prompt(ctx context.Context, rt *Runtime, opts PromptOptions) error {
 	return nil
 }
 
-// resolveConfig handles config loading, prompt resolution, and model override.
 func resolveConfig(opts PromptOptions) (*config.Config, *prompt.Prompt, error) {
 	cfg, err := config.Load()
 	if err != nil {
@@ -254,8 +247,6 @@ func buildMessages(p *prompt.Prompt, opts PromptOptions, input []byte) (systemPr
 	return p.Content, string(input), nil
 }
 
-// executeModel handles provider creation, streaming decision, spinner, and model call.
-// Returns the response, whether streaming was used, and any error.
 func executeModel(ctx context.Context, rt *Runtime, cfg *config.Config, req provider.Request, hasSchema bool) (provider.Response, bool, error) {
 	prov := rt.Provider
 	if prov == nil {
@@ -285,8 +276,7 @@ func executeModel(ctx context.Context, rt *Runtime, cfg *config.Config, req prov
 }
 
 // resolvePrompt resolves the prompt from options (name, -e, or -f).
-// When all prompt sources are empty (conversation mode without an explicit prompt),
-// returns an empty prompt.
+// Returns an empty prompt when all sources are empty (conversation mode).
 func resolvePrompt(opts PromptOptions) (*prompt.Prompt, error) {
 	switch {
 	case opts.InlinePrompt != "":
@@ -321,8 +311,7 @@ func promptEnvKey(name string) string {
 	return strings.ToUpper(s)
 }
 
-// resolveConversation resolves the conversation handle and history from opts.
-// Returns (nil, nil, nil) for stateless mode (opts.Conversation == "").
+// Returns (nil, nil, nil) for stateless mode.
 func resolveConversation(rt *Runtime, opts PromptOptions, userMessage string) (*conversation.Conversation, []conversation.Message, error) {
 	if opts.Conversation == "" {
 		return nil, nil, nil
@@ -357,8 +346,7 @@ func resolveConversation(rt *Runtime, opts PromptOptions, userMessage string) (*
 	return conv, history, nil
 }
 
-// buildConversationMessages constructs the full multi-turn message list for the API.
-// The system prompt is placed first, followed by historical turns, then the new user message.
+// buildConversationMessages constructs the multi-turn message list for the API.
 func buildConversationMessages(system string, history []conversation.Message, user string) []provider.Message {
 	msgs := make([]provider.Message, 0, len(history)+2)
 	if system != "" {
@@ -376,8 +364,6 @@ func buildConversationMessages(system string, history []conversation.Message, us
 
 // persistTurn appends this turn to the conversation. Failures are warnings,
 // not errors — the response has already been delivered on stdout.
-// The system line is stored even when empty: it carries the model field,
-// which model inheritance depends on for conversations started without a prompt.
 func persistTurn(rt *Runtime, conv *conversation.Conversation, storeSystem bool, system, model, user string, resp provider.Response) {
 	now := time.Now().UTC()
 	pending := make([]conversation.Message, 0, 3)
@@ -396,9 +382,8 @@ func persistTurn(rt *Runtime, conv *conversation.Conversation, storeSystem bool,
 	}
 }
 
-// cleanupNewConversation removes the reserved-but-empty file left behind
-// when a brand-new conversation's first model call fails. It only removes
-// empty files: if another process persisted turns meanwhile, the data wins.
+// cleanupNewConversation removes the empty file left behind when a new
+// conversation's first model call fails.
 func cleanupNewConversation(conv *conversation.Conversation) {
 	if conv == nil || !conv.IsNew() {
 		return
@@ -410,9 +395,7 @@ func cleanupNewConversation(conv *conversation.Conversation) {
 	_ = os.Remove(conv.Path())
 }
 
-// explicitPrompt reports whether the user provided a prompt on this
-// invocation (named prompt, -e, or -f) rather than relying on the
-// conversation's stored system prompt.
+// explicitPrompt reports whether the user provided a prompt on this invocation.
 func explicitPrompt(opts PromptOptions) bool {
 	return opts.PromptName != "" || opts.InlinePrompt != "" || opts.PromptFile != ""
 }

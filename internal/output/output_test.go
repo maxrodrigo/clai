@@ -10,7 +10,6 @@ func TestTruncateRunes(t *testing.T) {
 	t.Run("truncates long input and adds marker", func(t *testing.T) {
 		data := []byte(strings.Repeat("a", 600))
 		got := truncateRunes(data, 500)
-		// Content is capped at 500 bytes, then the marker appended.
 		if len(got) > 515 {
 			t.Errorf("truncateRunes: result too long: %d bytes", len(got))
 		}

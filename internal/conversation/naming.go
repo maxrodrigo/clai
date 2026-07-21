@@ -9,9 +9,8 @@ import (
 
 var nameRe = regexp.MustCompile(`^[a-z0-9_][a-z0-9._-]*$`)
 
-// ValidateName checks that name is a valid conversation identifier.
-// Rules: lowercase alphanumeric, dots, dashes, underscores; must start with
-// alphanumeric or underscore; max 64 characters.
+// ValidateName checks that name is a valid conversation identifier:
+// lowercase alphanumeric, dots, dashes, underscores; max 64 chars.
 func ValidateName(name string) error {
 	if name == "" {
 		return errors.New("conversation name must not be empty")
@@ -25,9 +24,7 @@ func ValidateName(name string) error {
 	return nil
 }
 
-// Slugify derives a short, filesystem-safe slug from free-form user input.
-// The result is at most 24 characters, broken at a word boundary, containing
-// only [a-z0-9-]. Returns "conversation" if no usable characters remain.
+// Slugify derives a filesystem-safe slug (≤24 chars, [a-z0-9-]) from input.
 func Slugify(input string) string {
 	input = strings.ToLower(strings.TrimSpace(input))
 	var b strings.Builder

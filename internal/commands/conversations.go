@@ -175,9 +175,8 @@ func newConversationRemoveCmd(out *output.Output) *cobra.Command {
 	return cmd
 }
 
-// parseDuration parses a duration string. Supports "Nd" as days shorthand
-// in addition to standard Go durations (e.g. "720h"). Negative durations
-// are rejected: a future cutoff would remove every conversation.
+// parseDuration supports "Nd" as days shorthand plus standard Go durations.
+// Rejects negative values.
 func parseDuration(s string) (time.Duration, error) {
 	var d time.Duration
 	if strings.HasSuffix(s, "d") {

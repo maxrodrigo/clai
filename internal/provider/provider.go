@@ -47,11 +47,9 @@ type Request struct {
 	JSONMode    bool
 }
 
-// Turns normalizes the request into an effective system prompt and the
-// ordered non-system turns, regardless of whether the request uses the
-// single-shot form (System/User) or the multi-turn form (Messages).
-// Providers map the returned turns to their native types and place system
-// in their system slot (or as a leading system message).
+// Turns normalizes the request into a system prompt and ordered non-system
+// turns, regardless of whether it uses single-shot (System/User) or
+// multi-turn (Messages) form.
 func (r Request) Turns() (system string, turns []Message) {
 	if len(r.Messages) == 0 {
 		return r.System, []Message{{Role: "user", Content: r.User}}

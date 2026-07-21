@@ -16,8 +16,7 @@ import (
 
 const fileExt = ".jsonl"
 
-// maxNewRetries caps the number of O_EXCL retry attempts in New() to prevent
-// infinite loops if the filesystem consistently races with another process.
+// maxNewRetries caps O_EXCL retry attempts in New().
 const maxNewRetries = 5
 
 // Message is a single turn persisted as one JSON line.
@@ -37,10 +36,8 @@ type Conversation struct {
 	isNew bool
 }
 
-// IsNew reports whether this conversation was just created by New().
 func (c *Conversation) IsNew() bool { return c.isNew }
 
-// Path returns the absolute path to the backing JSONL file.
 func (c *Conversation) Path() string { return c.path }
 
 // Dir returns the conversations directory path.
@@ -113,11 +110,9 @@ func Open(name string) (*Conversation, error) {
 	}, nil
 }
 
-// Append writes a message as a single JSON line to the conversation file.
-// Creates the directory and file on first call. Uses O_APPEND with an
-// exclusive flock for safe concurrent writes.
+// Append writes a message as a JSON line. Creates the directory and file on
+// first call. Uses O_APPEND with flock for safe concurrent writes.
 func (c *Conversation) Append(m Message) error {
-	// Ensure the directory exists on the first write.
 	if err := os.MkdirAll(filepath.Dir(c.path), 0o700); err != nil {
 		return fmt.Errorf("create conversation dir: %w", err)
 	}
@@ -143,9 +138,8 @@ func (c *Conversation) Append(m Message) error {
 	return nil
 }
 
-// Messages reads all messages from the conversation file.
-// Returns parsed messages, a count of malformed lines that were skipped, and any error.
-// If the file does not exist, returns empty results with no error.
+// Messages reads all messages from the conversation file. Malformed lines
+// are counted but skipped. Returns empty results if the file does not exist.
 func (c *Conversation) Messages() ([]Message, int, error) {
 	data, err := os.ReadFile(c.path)
 	if err != nil {
@@ -172,9 +166,8 @@ func (c *Conversation) Messages() ([]Message, int, error) {
 	return msgs, skipped, nil
 }
 
-// New creates a new conversation from free-form user input.
-// The input is slugified and deduplicated with numeric suffixes if needed.
-// If a race on O_EXCL occurs, it rescans and retries up to maxNewRetries times.
+// New creates a conversation from free-form user input. The input is slugified
+// and deduplicated with numeric suffixes.
 func New(input string) (*Conversation, error) {
 	base := Slugify(input)
 	dir, err := ensureDir()
@@ -209,8 +202,7 @@ func New(input string) (*Conversation, error) {
 	return nil, fmt.Errorf("create conversation: failed after %d attempts (name contention on %q)", maxNewRetries, base)
 }
 
-// nextFreeName scans dir for the next available name based on base slug.
-// Sequence: base, base-2, base-3, ...
+// nextFreeName returns the next available name: base, base-2, base-3, ...
 func nextFreeName(dir, base string) (string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {

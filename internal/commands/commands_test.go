@@ -290,7 +290,6 @@ func TestCLIConversationReservedTokensPassThrough(t *testing.T) {
 	}
 }
 
-// seedConversation creates a conversation with a system and user message for testing.
 func seedConversation(t *testing.T, name string) {
 	t.Helper()
 	c, err := conversation.Open(name)

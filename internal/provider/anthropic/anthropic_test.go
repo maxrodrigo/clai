@@ -92,7 +92,6 @@ func TestBuildParams_thinkEnabled(t *testing.T) {
 
 	params := p.buildParams(req)
 
-	// Thinking should be set with default budget
 	if params.Thinking.OfEnabled == nil {
 		t.Fatal("Thinking.OfEnabled is nil, expected enabled config")
 	}
