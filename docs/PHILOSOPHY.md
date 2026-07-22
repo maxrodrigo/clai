@@ -34,6 +34,10 @@ Behaviors are text files, not compiled features. Adding something new means writ
 
 Run, output, exit. No REPL, no wizard, no "press any key." Your terminal is yours.
 
+Conversations (`-c`) don't change this. Each invocation still runs, outputs, and exits —
+context is persisted to a flat file between invocations, like shell history. There is no
+interactive loop, no prompt, no session process.
+
 The shell already writes files, appends, copies to clipboard, loops. Adding flags for things it already does just teaches tool-specific tricks when universal ones exist.
 
 ## Quiet on success, loud on failure

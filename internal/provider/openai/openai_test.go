@@ -129,3 +129,61 @@ func TestBuildParams_noJSONMode(t *testing.T) {
 		t.Error("ResponseFormat.OfJSONObject should not be set when JSONMode is false")
 	}
 }
+
+func TestBuildParams_messages(t *testing.T) {
+	p := &Provider{name: "openai"}
+	req := provider.Request{
+		Model: "gpt-4",
+		Messages: []provider.Message{
+			{Role: "system", Content: "Be concise"},
+			{Role: "user", Content: "What is Go?"},
+			{Role: "assistant", Content: "A programming language."},
+			{Role: "user", Content: "Who created it?"},
+		},
+	}
+
+	params := p.buildParams(req)
+
+	// Should have 4 messages: system + 3 turns
+	if len(params.Messages) != 4 {
+		t.Fatalf("len(Messages) = %d, want 4", len(params.Messages))
+	}
+	// First message should be system
+	if params.Messages[0].OfSystem == nil {
+		t.Errorf("Messages[0] should be system, got %+v", params.Messages[0])
+	}
+	// Second should be user
+	if params.Messages[1].OfUser == nil {
+		t.Errorf("Messages[1] should be user, got %+v", params.Messages[1])
+	}
+	// Third should be assistant
+	if params.Messages[2].OfAssistant == nil {
+		t.Errorf("Messages[2] should be assistant, got %+v", params.Messages[2])
+	}
+	// Fourth should be user
+	if params.Messages[3].OfUser == nil {
+		t.Errorf("Messages[3] should be user, got %+v", params.Messages[3])
+	}
+}
+
+func TestBuildParams_singleShotUnchanged(t *testing.T) {
+	p := &Provider{name: "openai"}
+	req := provider.Request{
+		Model:  "gpt-4",
+		System: "Be helpful",
+		User:   "Hello",
+	}
+
+	params := p.buildParams(req)
+
+	// Should still produce 2 messages: system + user
+	if len(params.Messages) != 2 {
+		t.Fatalf("len(Messages) = %d, want 2", len(params.Messages))
+	}
+	if params.Messages[0].OfSystem == nil {
+		t.Errorf("Messages[0] should be system")
+	}
+	if params.Messages[1].OfUser == nil {
+		t.Errorf("Messages[1] should be user")
+	}
+}

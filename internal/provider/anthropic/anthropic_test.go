@@ -92,7 +92,6 @@ func TestBuildParams_thinkEnabled(t *testing.T) {
 
 	params := p.buildParams(req)
 
-	// Thinking should be set with default budget
 	if params.Thinking.OfEnabled == nil {
 		t.Fatal("Thinking.OfEnabled is nil, expected enabled config")
 	}
@@ -132,5 +131,39 @@ func TestBuildParams_noThinkNoThinking(t *testing.T) {
 
 	if params.Thinking.OfEnabled != nil {
 		t.Error("Thinking should not be set when Think is false")
+	}
+}
+
+func TestBuildParams_messages(t *testing.T) {
+	p := &Provider{}
+	req := provider.Request{
+		Model: "claude-3-haiku-20240307",
+		Messages: []provider.Message{
+			{Role: "system", Content: "Be concise"},
+			{Role: "user", Content: "What is Go?"},
+			{Role: "assistant", Content: "A language."},
+			{Role: "user", Content: "Who made it?"},
+		},
+	}
+
+	params := p.buildParams(req)
+
+	// System should be lifted into the dedicated system slot
+	if len(params.System) != 1 || params.System[0].Text != "Be concise" {
+		t.Errorf("System = %+v, want [{Text: Be concise}]", params.System)
+	}
+	// Should have 3 turn messages (system is not in Messages)
+	if len(params.Messages) != 3 {
+		t.Fatalf("len(Messages) = %d, want 3", len(params.Messages))
+	}
+	// Verify roles: user, assistant, user
+	if params.Messages[0].Role != "user" {
+		t.Errorf("Messages[0].Role = %q, want user", params.Messages[0].Role)
+	}
+	if params.Messages[1].Role != "assistant" {
+		t.Errorf("Messages[1].Role = %q, want assistant", params.Messages[1].Role)
+	}
+	if params.Messages[2].Role != "user" {
+		t.Errorf("Messages[2].Role = %q, want user", params.Messages[2].Role)
 	}
 }

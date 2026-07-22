@@ -76,3 +76,64 @@ func TestBuildConfig_ThinkDefaultBudget(t *testing.T) {
 		t.Errorf("expected default budget %d, got %v", defaultThinkBudget, cfg.ThinkingConfig.ThinkingBudget)
 	}
 }
+
+func TestBuildContents_messages(t *testing.T) {
+	req := provider.Request{
+		Model: "gemini-2.5-flash",
+		Messages: []provider.Message{
+			{Role: "system", Content: "Be concise"},
+			{Role: "user", Content: "What is Go?"},
+			{Role: "assistant", Content: "A language."},
+			{Role: "user", Content: "Who made it?"},
+		},
+	}
+
+	contents := buildContents(req)
+
+	// Should have 3 content items (system is lifted out by Turns)
+	if len(contents) != 3 {
+		t.Fatalf("len(contents) = %d, want 3", len(contents))
+	}
+	// First should be user role
+	if contents[0].Role != "user" {
+		t.Errorf("contents[0].Role = %q, want user", contents[0].Role)
+	}
+	// Second should be model role (Google uses "model" for assistant)
+	if contents[1].Role != "model" {
+		t.Errorf("contents[1].Role = %q, want model", contents[1].Role)
+	}
+	// Third should be user role
+	if contents[2].Role != "user" {
+		t.Errorf("contents[2].Role = %q, want user", contents[2].Role)
+	}
+	// Verify content text
+	if contents[0].Parts[0].Text != "What is Go?" {
+		t.Errorf("contents[0] text = %q, want 'What is Go?'", contents[0].Parts[0].Text)
+	}
+	if contents[1].Parts[0].Text != "A language." {
+		t.Errorf("contents[1] text = %q, want 'A language.'", contents[1].Parts[0].Text)
+	}
+	if contents[2].Parts[0].Text != "Who made it?" {
+		t.Errorf("contents[2] text = %q, want 'Who made it?'", contents[2].Parts[0].Text)
+	}
+}
+
+func TestBuildConfig_systemFromMessages(t *testing.T) {
+	p := &Provider{name: "gemini"}
+	req := provider.Request{
+		Model: "gemini-2.5-flash",
+		Messages: []provider.Message{
+			{Role: "system", Content: "You are a helper."},
+			{Role: "user", Content: "hello"},
+		},
+	}
+
+	cfg := p.buildConfig(req)
+
+	if cfg.SystemInstruction == nil {
+		t.Fatal("expected SystemInstruction to be set")
+	}
+	if len(cfg.SystemInstruction.Parts) != 1 || cfg.SystemInstruction.Parts[0].Text != "You are a helper." {
+		t.Errorf("SystemInstruction = %+v, want text 'You are a helper.'", cfg.SystemInstruction)
+	}
+}

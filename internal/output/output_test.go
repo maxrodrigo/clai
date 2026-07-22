@@ -10,7 +10,6 @@ func TestTruncateRunes(t *testing.T) {
 	t.Run("truncates long input and adds marker", func(t *testing.T) {
 		data := []byte(strings.Repeat("a", 600))
 		got := truncateRunes(data, 500)
-		// Content is capped at 500 bytes, then the marker appended.
 		if len(got) > 515 {
 			t.Errorf("truncateRunes: result too long: %d bytes", len(got))
 		}
@@ -203,4 +202,20 @@ func TestSpinnerWriter_stopsSpinnerOnFirstWrite(t *testing.T) {
 	}
 	// Second write must not panic (spinner already stopped).
 	_, _ = sw.Write([]byte(" world"))
+}
+
+func TestPrintDryRunHistory(t *testing.T) {
+	var errBuf bytes.Buffer
+	o := &Output{Stdout: &bytes.Buffer{}, Stderr: &errBuf}
+	o.PrintDryRunHistory([]DryRunMessage{
+		{Role: "user", Content: "what is k8s?"},
+		{Role: "assistant", Content: "an orchestrator"},
+	})
+	got := errBuf.String()
+	if !strings.Contains(got, "history user: what is k8s?") {
+		t.Errorf("missing user line: %q", got)
+	}
+	if !strings.Contains(got, "history assistant: an orchestrator") {
+		t.Errorf("missing assistant line: %q", got)
+	}
 }

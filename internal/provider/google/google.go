@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 
 	"google.golang.org/genai"
@@ -13,6 +14,18 @@ import (
 	"github.com/maxrodrigo/clai/internal/config"
 	"github.com/maxrodrigo/clai/internal/provider"
 )
+
+// clampInt32 converts n to int32, capping at the int32 range. The genai SDK
+// takes int32 where clai's config uses int.
+func clampInt32(n int) int32 {
+	if n > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	if n < math.MinInt32 {
+		return math.MinInt32
+	}
+	return int32(n)
+}
 
 func init() {
 	provider.Register("gemini", func(pc config.ProviderConfig) provider.Provider {
@@ -60,7 +73,7 @@ func (p *Provider) Complete(ctx context.Context, req provider.Request) (provider
 	if p.initErr != nil {
 		return provider.Response{}, p.opErr("complete", p.initErr)
 	}
-	contents := []*genai.Content{genai.NewContentFromText(req.User, genai.RoleUser)}
+	contents := buildContents(req)
 	cfg := p.buildConfig(req)
 
 	result, err := p.client.Models.GenerateContent(ctx, req.Model, contents, cfg)
@@ -74,7 +87,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.Request, w i
 	if p.initErr != nil {
 		return provider.Response{}, p.opErr("stream", p.initErr)
 	}
-	contents := []*genai.Content{genai.NewContentFromText(req.User, genai.RoleUser)}
+	contents := buildContents(req)
 	cfg := p.buildConfig(req)
 
 	var sb strings.Builder
@@ -116,17 +129,30 @@ func (p *Provider) Models(ctx context.Context) ([]string, error) {
 	return ids, nil
 }
 
+func buildContents(req provider.Request) []*genai.Content {
+	_, turns := req.Turns()
+	contents := make([]*genai.Content, 0, len(turns))
+	for _, t := range turns {
+		var role genai.Role = genai.RoleUser
+		if t.Role == "assistant" {
+			role = genai.RoleModel
+		}
+		contents = append(contents, genai.NewContentFromText(t.Content, role))
+	}
+	return contents
+}
+
 func (p *Provider) buildConfig(req provider.Request) *genai.GenerateContentConfig {
 	cfg := &genai.GenerateContentConfig{}
 
-	if req.System != "" {
-		cfg.SystemInstruction = &genai.Content{Parts: []*genai.Part{{Text: req.System}}}
+	if system, _ := req.Turns(); system != "" {
+		cfg.SystemInstruction = &genai.Content{Parts: []*genai.Part{{Text: system}}}
 	}
 	if req.Temperature != nil {
 		cfg.Temperature = genai.Ptr[float32](float32(*req.Temperature))
 	}
 	if req.MaxTokens > 0 {
-		cfg.MaxOutputTokens = int32(req.MaxTokens)
+		cfg.MaxOutputTokens = clampInt32(req.MaxTokens)
 	}
 	if req.JSONMode {
 		cfg.ResponseMIMEType = "application/json"
@@ -134,7 +160,7 @@ func (p *Provider) buildConfig(req provider.Request) *genai.GenerateContentConfi
 	if req.Think {
 		budget := int32(defaultThinkBudget)
 		if req.ThinkBudget > 0 {
-			budget = int32(req.ThinkBudget)
+			budget = clampInt32(req.ThinkBudget)
 		}
 		cfg.ThinkingConfig = &genai.ThinkingConfig{
 			ThinkingBudget: genai.Ptr[int32](budget),
