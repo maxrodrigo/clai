@@ -69,13 +69,25 @@ func (p *Provider) buildParams(req provider.Request) anthropicsdk.MessageNewPara
 	if req.MaxTokens > 0 {
 		maxTokens = int64(req.MaxTokens)
 	}
+
+	system, turns := req.Turns()
+	msgs := make([]anthropicsdk.MessageParam, 0, len(turns))
+	for _, t := range turns {
+		block := anthropicsdk.NewTextBlock(t.Content)
+		if t.Role == "assistant" {
+			msgs = append(msgs, anthropicsdk.NewAssistantMessage(block))
+		} else {
+			msgs = append(msgs, anthropicsdk.NewUserMessage(block))
+		}
+	}
+
 	params := anthropicsdk.MessageNewParams{
 		Model:     req.Model,
 		MaxTokens: maxTokens,
-		Messages:  []anthropicsdk.MessageParam{anthropicsdk.NewUserMessage(anthropicsdk.NewTextBlock(req.User))},
+		Messages:  msgs,
 	}
-	if req.System != "" {
-		params.System = []anthropicsdk.TextBlockParam{{Text: req.System}}
+	if system != "" {
+		params.System = []anthropicsdk.TextBlockParam{{Text: system}}
 	}
 	if req.Temperature != nil {
 		params.Temperature = anthropicsdk.Float(*req.Temperature)

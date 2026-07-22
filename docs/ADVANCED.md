@@ -10,7 +10,7 @@ A `clai` prompt is a system instruction delivered to an LLM. The user's input ar
 
 Three constraints follow from this:
 
-1. **Output is data, not conversation.** No preambles ("Here's your summary:"), no sign-offs. The output must be directly consumable by the next tool in the pipeline.
+1. **Output is data, not conversation.** No preambles ("Here's your summary:"), no sign-offs. The output must be directly consumable by the next tool in the pipeline. (This describes the default stateless mode; `-c` is the explicit opt-in that carries context across invocations — the output itself is still plain data.)
 2. **The prompt must work across model sizes.** Built-in prompts run on small local models as well as frontier models.
 3. **The prompt is the interface.** No follow-up, no clarification, no retry loop. The prompt must be unambiguous enough to produce useful output on the first call.
 
