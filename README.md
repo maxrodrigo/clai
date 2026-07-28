@@ -299,7 +299,6 @@ Create a file in `~/.config/clai/prompts/`:
 ---
 description: One-line for `clai prompt`
 model: anthropic/claude-sonnet # optional
-temperature: 0.7 # optional
 strategy: cot # optional
 ---
 

@@ -97,7 +97,6 @@ Every prompt file is Markdown with an optional YAML frontmatter block.
 ---
 description: One-line summary shown in `clai prompt`
 model: provider/model-name
-temperature: 0.7
 strategy: cot
 schema: '{"field": "type"}'
 think: true
@@ -114,7 +113,7 @@ Your prompt body here.
 | ------------- | ------ | ---------------------------------------------------------------------------------------------- |
 | `description` | string | Shown in `clai prompt`. Required for system prompts.                                           |
 | `model`       | string | Default model. Format: `provider/model-name`. Overridden by `-m`, `CLAI_MODEL_<NAME>`, config. |
-| `temperature` | float  | Sampling temperature (0.0–2.0). Overridden by `-t`.                                            |
+| `temperature` | float  | Sampling temperature (0.0–2.0). Not supported by all models. Overridden by `-t`.               |
 | `strategy`    | string | Default reasoning strategy. Overridden by `--strategy`.                                        |
 | `schema`      | string | JSON Schema for structured output. Overridden by `-s`.                                         |
 | `think`       | bool   | Enable extended thinking (Anthropic/Bedrock/Gemini). Overridden by `--think`.                  |
@@ -130,7 +129,9 @@ Your prompt body here.
 model: openai/gpt-4.1 # needs complex JSON output
 ```
 
-**`temperature`**: when the task has a natural temperature:
+**`temperature`**: when the task has a natural temperature and you know the
+target model supports it. Not all models accept temperature (e.g., Anthropic
+gen-5+, OpenAI o-series reasoning models reject it):
 
 ```yaml
 temperature: 0    # extraction tasks
