@@ -3,6 +3,8 @@ package anthropic
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -37,6 +39,33 @@ type Provider struct {
 // opErr constructs a provider.OpError for this provider instance.
 func (p *Provider) opErr(op string, err error) error {
 	return &provider.OpError{Provider: "anthropic", Op: op, Err: err}
+}
+
+// apiError translates an Anthropic SDK error into a provider.APIError.
+// Non-API errors (network, context cancelled, etc.) are returned unchanged.
+func apiError(err error) error {
+	var apiErr *anthropicsdk.Error
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+	return &provider.APIError{
+		StatusCode: apiErr.StatusCode,
+		Message:    extractMessage(apiErr.RawJSON()),
+	}
+}
+
+// extractMessage extracts the human-readable message from Anthropic's
+// error envelope: {"type":"error","error":{"type":"...","message":"..."}}.
+func extractMessage(raw string) string {
+	var env struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if json.Unmarshal([]byte(raw), &env) == nil {
+		return env.Error.Message
+	}
+	return ""
 }
 
 func newProvider(pc config.ProviderConfig) *Provider {
@@ -105,7 +134,7 @@ func (p *Provider) buildParams(req provider.Request) anthropicsdk.MessageNewPara
 func (p *Provider) completeFull(ctx context.Context, params anthropicsdk.MessageNewParams) (provider.Response, error) {
 	msg, err := p.client.Messages.New(ctx, params)
 	if err != nil {
-		return provider.Response{}, p.opErr("complete", err)
+		return provider.Response{}, p.opErr("complete", apiError(err))
 	}
 	var sb strings.Builder
 	for _, block := range msg.Content {
@@ -126,7 +155,7 @@ func (p *Provider) completeStreaming(ctx context.Context, params anthropicsdk.Me
 	for stream.Next() {
 		event := stream.Current()
 		if err := acc.Accumulate(event); err != nil {
-			return provider.Response{}, p.opErr("stream", err)
+			return provider.Response{}, p.opErr("stream", apiError(err))
 		}
 		if delta, ok := event.AsAny().(anthropicsdk.ContentBlockDeltaEvent); ok {
 			if text, ok := delta.Delta.AsAny().(anthropicsdk.TextDelta); ok {
@@ -135,7 +164,7 @@ func (p *Provider) completeStreaming(ctx context.Context, params anthropicsdk.Me
 		}
 	}
 	if err := stream.Err(); err != nil {
-		return provider.Response{}, p.opErr("stream", err)
+		return provider.Response{}, p.opErr("stream", apiError(err))
 	}
 	var sb strings.Builder
 	for _, block := range acc.Content {
@@ -157,7 +186,7 @@ func (p *Provider) Models(ctx context.Context) ([]string, error) {
 		ids = append(ids, iter.Current().ID)
 	}
 	if err := iter.Err(); err != nil {
-		return nil, p.opErr("list models", err)
+		return nil, p.opErr("list models", apiError(err))
 	}
 	return ids, nil
 }

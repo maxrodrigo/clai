@@ -1,8 +1,12 @@
 package openai
 
 import (
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/maxrodrigo/clai/internal/config"
 	"github.com/maxrodrigo/clai/internal/provider"
 )
 
@@ -185,5 +189,51 @@ func TestBuildParams_singleShotUnchanged(t *testing.T) {
 	}
 	if params.Messages[1].OfUser == nil {
 		t.Errorf("Messages[1] should be user")
+	}
+}
+
+func TestApiError_nonAPIError(t *testing.T) {
+	orig := errors.New("connection reset")
+	got := apiError(orig)
+	if got != orig {
+		t.Errorf("apiError() should return the original error unchanged, got %v", got)
+	}
+}
+
+func TestApiError_sdkError(t *testing.T) {
+	// Create a test server that returns a 400 with an OpenAI error body.
+	body := `{"error":{"message":"invalid model: fake-model","type":"invalid_request_error","code":"model_not_found"}}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	// Make a real SDK call that will fail with a 400.
+	p := newProvider("openai", config.ProviderConfig{BaseURL: srv.URL, APIKey: "test-key"})
+
+	_, err := p.Complete(t.Context(), provider.Request{
+		Model: "fake-model",
+		User:  "hello",
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	// The error should contain our API message.
+	var opErr *provider.OpError
+	if !errors.As(err, &opErr) {
+		t.Fatalf("expected *provider.OpError, got %T", err)
+	}
+	var apiErr *provider.APIError
+	if !errors.As(opErr.Err, &apiErr) {
+		t.Fatalf("expected *provider.APIError, got %T: %v", opErr.Err, opErr.Err)
+	}
+	if apiErr.StatusCode != 400 {
+		t.Errorf("StatusCode = %d, want 400", apiErr.StatusCode)
+	}
+	if apiErr.Message != "invalid model: fake-model" {
+		t.Errorf("Message = %q, want %q", apiErr.Message, "invalid model: fake-model")
 	}
 }

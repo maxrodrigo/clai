@@ -2,17 +2,10 @@ package provider
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"syscall"
 	"testing"
 )
-
-// httpStatusError is a test helper that implements the statusCoder interface.
-type httpStatusError struct{ code int }
-
-func (e *httpStatusError) Error() string   { return fmt.Sprintf("HTTP %d", e.code) }
-func (e *httpStatusError) StatusCode() int { return e.code }
 
 func TestOpError_Error(t *testing.T) {
 	tests := []struct {
@@ -54,31 +47,22 @@ func TestOpError_Error(t *testing.T) {
 			want: "openai: complete: cannot resolve api.openai.com",
 		},
 		{
-			name: "sdk 401 error string",
+			name: "api error with message",
 			err: &OpError{
 				Provider: "anthropic",
-				Op:       "complete",
-				Err:      fmt.Errorf("POST \"https://api.anthropic.com/v1/messages\": 401 Unauthorized {\"error\":{\"message\":\"invalid api key\"}}"),
-			},
-			want: "anthropic: complete: unauthorized (check API key)",
-		},
-		{
-			name: "sdk 429 error string",
-			err: &OpError{
-				Provider: "openai",
 				Op:       "stream",
-				Err:      fmt.Errorf("POST \"https://api.openai.com/v1/chat/completions\": 429 Too Many Requests {\"error\":{}}"),
+				Err:      &APIError{StatusCode: 400, Message: "max_tokens: 8192 exceeds model maximum"},
 			},
-			want: "openai: stream: rate limited (try again shortly)",
+			want: "anthropic: stream: max_tokens: 8192 exceeds model maximum (HTTP 400)",
 		},
 		{
-			name: "bedrock HTTP 403",
+			name: "api error without message",
 			err: &OpError{
 				Provider: "bedrock",
 				Op:       "complete",
-				Err:      &httpStatusError{403},
+				Err:      &APIError{StatusCode: 503},
 			},
-			want: "bedrock: complete: forbidden (check API key permissions)",
+			want: "bedrock: complete: HTTP 503",
 		},
 		{
 			name: "unknown error passes through",
@@ -110,22 +94,34 @@ func TestOpError_Unwrap(t *testing.T) {
 	}
 }
 
-func TestExtractHTTPStatus(t *testing.T) {
+func TestAPIError_Error(t *testing.T) {
 	tests := []struct {
-		input string
-		want  int
+		name string
+		err  *APIError
+		want string
 	}{
-		{`POST "https://api.openai.com/v1/chat/completions": 401 Unauthorized {"error":{}}`, 401},
-		{`POST "https://api.anthropic.com/v1/messages": 529 Overloaded {"error":{}}`, 529},
-		{"no status here", 0},
-		{`GET "https://example.com": 200 OK`, 200},
+		{
+			name: "with message",
+			err:  &APIError{StatusCode: 400, Message: "invalid model"},
+			want: "invalid model (HTTP 400)",
+		},
+		{
+			name: "without message",
+			err:  &APIError{StatusCode: 401},
+			want: "HTTP 401",
+		},
+		{
+			name: "rate limit with message",
+			err:  &APIError{StatusCode: 429, Message: "rate limit exceeded, try again in 30s"},
+			want: "rate limit exceeded, try again in 30s (HTTP 429)",
+		},
 	}
 
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("status_%d", tt.want), func(t *testing.T) {
-			got := extractHTTPStatus(tt.input)
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.err.Error()
 			if got != tt.want {
-				t.Errorf("extractHTTPStatus(%q) = %d, want %d", tt.input, got, tt.want)
+				t.Errorf("Error() = %q, want %q", got, tt.want)
 			}
 		})
 	}

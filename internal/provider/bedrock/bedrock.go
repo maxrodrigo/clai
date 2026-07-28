@@ -113,14 +113,6 @@ type converseErrorResponse struct {
 	Message string `json:"message"`
 }
 
-// httpError is returned when Bedrock responds with a non-200 status and no
-// JSON body. It implements the statusCoder interface so humanize() can produce
-// a user-friendly message.
-type httpError struct{ code int }
-
-func (e *httpError) Error() string   { return fmt.Sprintf("HTTP %d", e.code) }
-func (e *httpError) StatusCode() int { return e.code }
-
 func (p *Provider) Complete(ctx context.Context, req provider.Request) (provider.Response, error) {
 	return p.doRequest(ctx, req, false, nil)
 }
@@ -211,9 +203,9 @@ func (p *Provider) doRequest(ctx context.Context, req provider.Request, stream b
 	if resp.StatusCode != http.StatusOK {
 		var errBody converseErrorResponse
 		if jsonErr := json.NewDecoder(resp.Body).Decode(&errBody); jsonErr != nil || errBody.Message == "" {
-			return provider.Response{}, p.opErr(op, &httpError{resp.StatusCode})
+			return provider.Response{}, p.opErr(op, &provider.APIError{StatusCode: resp.StatusCode})
 		}
-		return provider.Response{}, p.opErr(op, errors.New(errBody.Message))
+		return provider.Response{}, p.opErr(op, &provider.APIError{StatusCode: resp.StatusCode, Message: errBody.Message})
 	}
 
 	if stream {
@@ -395,7 +387,7 @@ func (p *Provider) Models(ctx context.Context) ([]string, error) {
 
 		if resp.StatusCode != http.StatusOK {
 			_ = resp.Body.Close()
-			return nil, p.opErr("list models", &httpError{resp.StatusCode})
+			return nil, p.opErr("list models", &provider.APIError{StatusCode: resp.StatusCode})
 		}
 
 		var result struct {
