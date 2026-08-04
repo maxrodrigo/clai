@@ -195,7 +195,7 @@ func TestBuildParams_singleShotUnchanged(t *testing.T) {
 func TestApiError_nonAPIError(t *testing.T) {
 	orig := errors.New("connection reset")
 	got := apiError(orig)
-	if got != orig {
+	if !errors.Is(got, orig) {
 		t.Errorf("apiError() should return the original error unchanged, got %v", got)
 	}
 }
@@ -230,8 +230,8 @@ func TestApiError_sdkError(t *testing.T) {
 	if !errors.As(opErr.Err, &apiErr) {
 		t.Fatalf("expected *provider.APIError, got %T: %v", opErr.Err, opErr.Err)
 	}
-	if apiErr.StatusCode != 400 {
-		t.Errorf("StatusCode = %d, want 400", apiErr.StatusCode)
+	if apiErr.StatusCode != http.StatusBadRequest {
+		t.Errorf("StatusCode = %d, want %d", apiErr.StatusCode, http.StatusBadRequest)
 	}
 	if apiErr.Message != "invalid model: fake-model" {
 		t.Errorf("Message = %q, want %q", apiErr.Message, "invalid model: fake-model")
