@@ -3,6 +3,7 @@ package openai
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -32,6 +33,19 @@ func (p *Provider) opErr(op string, err error) error {
 	return &provider.OpError{Provider: p.name, Op: op, Err: err}
 }
 
+// apiError translates an OpenAI SDK error into a provider.APIError.
+// Non-API errors (network, context cancelled, etc.) are returned unchanged.
+func apiError(err error) error {
+	var apiErr *openaisdk.Error
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+	return &provider.APIError{
+		StatusCode: apiErr.StatusCode,
+		Message:    apiErr.Message,
+	}
+}
+
 func newProvider(name string, pc config.ProviderConfig) *Provider {
 	opts := []option.RequestOption{
 		option.WithBaseURL(pc.BaseURL),
@@ -58,11 +72,18 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.Request, w i
 }
 
 func (p *Provider) buildParams(req provider.Request) openaisdk.ChatCompletionNewParams {
+	system, turns := req.Turns()
 	var messages []openaisdk.ChatCompletionMessageParamUnion
-	if req.System != "" {
-		messages = append(messages, openaisdk.SystemMessage(req.System))
+	if system != "" {
+		messages = append(messages, openaisdk.SystemMessage(system))
 	}
-	messages = append(messages, openaisdk.UserMessage(req.User))
+	for _, t := range turns {
+		if t.Role == "assistant" {
+			messages = append(messages, openaisdk.AssistantMessage(t.Content))
+		} else {
+			messages = append(messages, openaisdk.UserMessage(t.Content))
+		}
+	}
 
 	params := openaisdk.ChatCompletionNewParams{
 		Model:    req.Model,
@@ -85,7 +106,7 @@ func (p *Provider) buildParams(req provider.Request) openaisdk.ChatCompletionNew
 func (p *Provider) completeFull(ctx context.Context, params openaisdk.ChatCompletionNewParams) (provider.Response, error) {
 	resp, err := p.client.Chat.Completions.New(ctx, params)
 	if err != nil {
-		return provider.Response{}, p.opErr("complete", err)
+		return provider.Response{}, p.opErr("complete", apiError(err))
 	}
 	content := ""
 	if len(resp.Choices) > 0 {
@@ -109,7 +130,7 @@ func (p *Provider) completeStreaming(ctx context.Context, params openaisdk.ChatC
 		}
 	}
 	if err := stream.Err(); err != nil {
-		return provider.Response{}, p.opErr("stream", err)
+		return provider.Response{}, p.opErr("stream", apiError(err))
 	}
 	content := ""
 	if len(acc.Choices) > 0 {
@@ -129,7 +150,7 @@ func (p *Provider) Models(ctx context.Context) ([]string, error) {
 		ids = append(ids, iter.Current().ID)
 	}
 	if err := iter.Err(); err != nil {
-		return nil, p.opErr("list models", err)
+		return nil, p.opErr("list models", apiError(err))
 	}
 	return ids, nil
 }

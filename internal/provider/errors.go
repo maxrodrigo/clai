@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strconv"
-	"strings"
 )
 
 // OpError represents a failed provider operation. It follows the same pattern
@@ -25,9 +23,25 @@ func (e *OpError) Error() string {
 
 func (e *OpError) Unwrap() error { return e.Err }
 
+// APIError represents a structured error response from a provider's API.
+// Each provider translates its SDK-specific error into this common type,
+// keeping SDK knowledge at the provider boundary.
+type APIError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *APIError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("%s (HTTP %d)", e.Message, e.StatusCode)
+	}
+	return fmt.Sprintf("HTTP %d", e.StatusCode)
+}
+
 // humanize translates a raw error into a concise, user-readable message.
-// It inspects the error chain for known types (network errors, HTTP status
-// errors from SDKs) and extracts the essential information.
+// It handles infrastructure-level errors (network, DNS, timeouts) that are
+// common across all providers. Provider-specific API errors should already
+// be translated to *APIError before reaching this function.
 func humanize(err error) string {
 	if err == nil {
 		return ""
@@ -68,75 +82,5 @@ func humanize(err error) string {
 		return "request timed out"
 	}
 
-	// SDK HTTP errors: both openai-go and anthropic-sdk-go produce errors
-	// whose Error() string starts with the HTTP method and contains the
-	// status code. They also expose a StatusCode field. We detect them via
-	// a lightweight interface rather than importing the SDK packages.
-	type statusCoder interface {
-		error
-		StatusCode() int
-	}
-
-	var sc statusCoder
-	if errors.As(err, &sc) {
-		return httpMessage(sc.StatusCode())
-	}
-
-	// The Stainless SDKs (openai-go, anthropic-sdk-go) store StatusCode as a
-	// public field, not a method. We can't use an interface for that, but the
-	// Error() string always starts with "POST/GET ... : NNN StatusText".
-	// Extract the status code from the string as a fallback.
-	if code := extractHTTPStatus(err.Error()); code > 0 {
-		return httpMessage(code)
-	}
-
-	// Fallback: return the original error string.
 	return err.Error()
-}
-
-// httpMessage returns a concise description for common HTTP status codes.
-func httpMessage(code int) string {
-	switch code {
-	case 401:
-		return "unauthorized (check API key)"
-	case 403:
-		return "forbidden (check API key permissions)"
-	case 404:
-		return "model not found"
-	case 429:
-		return "rate limited (try again shortly)"
-	case 500:
-		return "server error (provider issue)"
-	case 502, 503:
-		return "service unavailable (try again shortly)"
-	default:
-		return fmt.Sprintf("HTTP %d", code)
-	}
-}
-
-// extractHTTPStatus looks for a "NNN StatusText" pattern in an error string
-// produced by the Stainless-generated SDKs. These errors look like:
-//
-//	POST "https://api.openai.com/v1/...": 401 Unauthorized {...}
-//
-// Returns 0 if no status code is found.
-func extractHTTPStatus(s string) int {
-	idx := strings.Index(s, "\": ")
-	if idx < 0 {
-		return 0
-	}
-	rest := s[idx+3:] // skip past "\": "
-	if len(rest) < 3 {
-		return 0
-	}
-	// A status code is exactly three digits, terminated by end-of-string or a
-	// space before the status text.
-	if len(rest) > 3 && rest[3] != ' ' {
-		return 0
-	}
-	code, err := strconv.Atoi(rest[:3])
-	if err != nil || code < 100 || code > 599 {
-		return 0
-	}
-	return code
 }

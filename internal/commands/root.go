@@ -10,6 +10,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/maxrodrigo/clai/internal/config"
+	"github.com/maxrodrigo/clai/internal/conversation"
 	"github.com/maxrodrigo/clai/internal/output"
 	"github.com/maxrodrigo/clai/internal/prompt"
 	"github.com/maxrodrigo/clai/internal/run"
@@ -25,8 +26,28 @@ import (
 // The out and in parameters provide I/O dependencies for the run pipeline.
 func NewRoot(out *output.Output, in *source.Input) *cobra.Command {
 	root := &cobra.Command{
-		Use:           "clai [flags] <prompt> [files...]",
-		Short:         "AI text processing for the UNIX pipeline",
+		Use:   "clai [flags] <prompt> [files...]",
+		Short: "AI text processing for the UNIX pipeline",
+		Long: `AI text processing for the UNIX pipeline.
+
+clai reads text from stdin or files, runs it through an AI model with a
+prompt, and writes the result to stdout — a filter, like grep or sed.
+
+The prompt is a named prompt (first argument), an inline expression (-e),
+or a file (-f). See 'clai prompt list' for available named prompts.`,
+		Example: `  # named prompt over stdin
+  git diff --staged | clai commit
+
+  # inline prompt
+  cat notes.md | clai -e "extract the action items"
+
+  # structured output
+  cat error.log | clai summarize -s '{"errors":"array"}'
+
+  # conversations: same flag to start and continue
+  echo "what is k8s?" | clai -c k8s -e "explain concisely"
+  echo "and swarm?"   | clai -c k8s
+  echo "more"         | clai -c -`,
 		Version:       version.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -57,18 +78,29 @@ func NewRoot(out *output.Output, in *source.Input) *cobra.Command {
 				Schema:       config.GetString("schema"),
 				DryRun:       config.GetBool("dry-run"),
 				Verbose:      config.GetBool("verbose"),
+				Conversation: cmd.Flag("conversation").Value.String(),
+				ModelFlagSet: cmd.Flags().Changed("model"),
 			}
 
 			if opts.InlinePrompt != "" && opts.PromptFile != "" {
 				return &UsageError{Msg: "cannot use both -e and -f"}
 			}
 
+			// Validate conversation name (reserved tokens pass through).
+			if opts.Conversation != "" && opts.Conversation != "-" && opts.Conversation != "+" {
+				if err := conversation.ValidateName(opts.Conversation); err != nil {
+					return &UsageError{Msg: fmt.Sprintf("invalid conversation name: %v", err)}
+				}
+			}
+
 			if opts.InlinePrompt == "" && opts.PromptFile == "" {
-				if len(args) == 0 {
+				if len(args) == 0 && opts.Conversation == "" {
 					return cmd.Help()
 				}
-				opts.PromptName = args[0]
-				args = args[1:]
+				if len(args) > 0 {
+					opts.PromptName = args[0]
+					args = args[1:]
+				}
 			}
 
 			rt := &run.Runtime{Output: out, Input: in}
@@ -97,6 +129,8 @@ func NewRoot(out *output.Output, in *source.Input) *cobra.Command {
 	_ = root.RegisterFlagCompletionFunc("strategy", completeStrategyNames)
 	f.BoolP("dry-run", "n", false, "print resolved config and prompt without calling the model")
 	f.BoolP("verbose", "v", false, "print query details and token counts to stderr")
+	f.StringP("conversation", "c", "", "start or continue a conversation: <name>, '-' = most recent, '+' = new auto-named")
+	_ = root.RegisterFlagCompletionFunc("conversation", completeConversationNames)
 	f.Bool("no-color", false, "disable colored output")
 	f.Bool("color", false, "force colored output even when stdout is not a TTY")
 
@@ -104,6 +138,7 @@ func NewRoot(out *output.Output, in *source.Input) *cobra.Command {
 		newPromptCmd(out),
 		newStrategyCmd(out),
 		newModelCmd(out),
+		newConversationCmd(out),
 	)
 
 	return root
@@ -200,6 +235,37 @@ func completeStrategyNamesOnly(cmd *cobra.Command, args []string, toComplete str
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	return completeStrategyNames(cmd, args, toComplete)
+}
+
+// conversationCompletions returns all conversation names for shell completion.
+func conversationCompletions() ([]string, cobra.ShellCompDirective) {
+	sums, err := conversation.List()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+	names := make([]string, 0, len(sums))
+	for _, s := range sums {
+		names = append(names, s.Name+"\t"+s.Preview)
+	}
+	return names, cobra.ShellCompDirectiveNoFileComp
+}
+
+// completeConversationNames completes the -c flag value, including reserved tokens.
+func completeConversationNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	names, dir := conversationCompletions()
+	if dir == cobra.ShellCompDirectiveError {
+		return nil, dir
+	}
+	names = append([]string{"-\tmost recent", "+\tnew auto-named"}, names...)
+	return names, cobra.ShellCompDirectiveNoFileComp
+}
+
+// completeConversationNamesOnly completes conversation name arguments for subcommands.
+func completeConversationNamesOnly(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return conversationCompletions()
 }
 
 // helpSectionRe matches lines like "Usage:", "Available Commands:", "Flags:".

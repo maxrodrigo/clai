@@ -1,11 +1,23 @@
 package run
 
 import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/maxrodrigo/clai/internal/conversation"
+	"github.com/maxrodrigo/clai/internal/output"
 	"github.com/maxrodrigo/clai/internal/prompt"
+	"github.com/maxrodrigo/clai/internal/provider"
+	"github.com/maxrodrigo/clai/internal/source"
 )
 
 func TestBuildMessages_InlineWithoutInput(t *testing.T) {
@@ -107,5 +119,348 @@ func TestResolvePrompt_FileMissing(t *testing.T) {
 	_, err := resolvePrompt(opts)
 	if err == nil {
 		t.Fatal("expected error for missing prompt file")
+	}
+}
+
+func TestExplicitPrompt(t *testing.T) {
+	tests := []struct {
+		name string
+		opts PromptOptions
+		want bool
+	}{
+		{"named prompt", PromptOptions{PromptName: "x"}, true},
+		{"inline prompt", PromptOptions{InlinePrompt: "x"}, true},
+		{"prompt file", PromptOptions{PromptFile: "x"}, true},
+		{"conversation only", PromptOptions{Conversation: "some-chat"}, false},
+		{"zero opts", PromptOptions{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := explicitPrompt(tt.opts); got != tt.want {
+				t.Errorf("explicitPrompt(%+v) = %v, want %v", tt.opts, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPersistTurnStoresEmptySystemLineWithModel(t *testing.T) {
+	t.Setenv("CLAI_CONVERSATIONS_DIR", t.TempDir())
+
+	conv, err := conversation.Open("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var outBuf, errBuf bytes.Buffer
+	rt := &Runtime{
+		Output: &output.Output{Stdout: &outBuf, Stderr: &errBuf},
+		Input:  &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}},
+	}
+
+	persistTurn(rt, conv, true, "", "openai/gpt-4.1", "hi", provider.Response{Content: "yo"})
+
+	msgs, skipped, err := conv.Messages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if skipped != 0 {
+		t.Errorf("expected no skipped lines, got %d", skipped)
+	}
+	if len(msgs) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(msgs))
+	}
+	if msgs[0].Role != "system" {
+		t.Errorf("expected first message role 'system', got %q", msgs[0].Role)
+	}
+	if msgs[0].Content != "" {
+		t.Errorf("expected empty system content, got %q", msgs[0].Content)
+	}
+	if msgs[0].Model != "openai/gpt-4.1" {
+		t.Errorf("expected system model 'openai/gpt-4.1', got %q", msgs[0].Model)
+	}
+}
+
+func TestPersistTurnConcurrentTurnsRemainAdjacent(t *testing.T) {
+	t.Setenv("CLAI_CONVERSATIONS_DIR", t.TempDir())
+	conv, err := conversation.Open("concurrent-turns")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := &Runtime{Output: &output.Output{Stdout: io.Discard, Stderr: io.Discard}}
+
+	const turns = 200
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < turns; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			content := fmt.Sprintf("turn-%d", i)
+			persistTurn(rt, conv, false, "", "", content, provider.Response{Content: content})
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+
+	msgs, skipped, err := conv.Messages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if skipped != 0 {
+		t.Fatalf("skipped = %d, want 0", skipped)
+	}
+	if len(msgs) != turns*2 {
+		t.Fatalf("got %d messages, want %d", len(msgs), turns*2)
+	}
+	for i := 0; i < len(msgs); i += 2 {
+		if msgs[i].Role != "user" || msgs[i+1].Role != "assistant" || msgs[i].Content != msgs[i+1].Content {
+			t.Fatalf("messages %d and %d are not an atomic turn: %+v, %+v", i, i+1, msgs[i], msgs[i+1])
+		}
+	}
+}
+
+func TestPersistTurnWarnsOnPersistenceError(t *testing.T) {
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	if err := os.WriteFile(blocker, []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CLAI_CONVERSATIONS_DIR", filepath.Join(blocker, "conversations"))
+	conv, err := conversation.Open("unwritable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stderr bytes.Buffer
+	rt := &Runtime{Output: &output.Output{Stdout: io.Discard, Stderr: &stderr}}
+
+	persistTurn(rt, conv, false, "", "", "question", provider.Response{Content: "answer"})
+
+	if got := stderr.String(); !strings.Contains(got, "warning: conversation not saved:") {
+		t.Fatalf("missing persistence warning: %q", got)
+	}
+}
+
+func TestPromptConversationDryRunShowsHistory(t *testing.T) {
+	// Seed a conversation with history.
+	dir := t.TempDir()
+	t.Setenv("CLAI_CONVERSATIONS_DIR", dir)
+	t.Setenv("CLAI_MODEL", "openai/gpt-4o")
+
+	c, err := conversation.Open("test-conv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := time.Now()
+	_ = c.Append(conversation.Message{Role: "system", Content: "be brief", Model: "openai/gpt-4.1", TS: ts})
+	_ = c.Append(conversation.Message{Role: "user", Content: "what is k8s?", TS: ts})
+	_ = c.Append(conversation.Message{Role: "assistant", Content: "an orchestrator", Model: "openai/gpt-4.1", TS: ts, TokensIn: 25, TokensOut: 150})
+
+	var outBuf, errBuf bytes.Buffer
+	out := &output.Output{Stdout: &outBuf, Stderr: &errBuf}
+	in := &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}}
+	rt := &Runtime{Output: out, Input: in}
+
+	opts := PromptOptions{
+		InlinePrompt: "explain more",
+		DryRun:       true,
+		Conversation: "test-conv",
+	}
+
+	err = Prompt(context.Background(), rt, opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got := errBuf.String()
+	if !strings.Contains(got, "history user: what is k8s?") {
+		t.Errorf("missing history user line in stderr: %q", got)
+	}
+	if !strings.Contains(got, "history assistant: an orchestrator") {
+		t.Errorf("missing history assistant line in stderr: %q", got)
+	}
+	// Should inherit model from conversation history
+	if !strings.Contains(got, "openai/gpt-4.1") {
+		t.Errorf("should inherit model from conversation, stderr: %q", got)
+	}
+}
+
+func TestPromptConversationInlineWithoutInputInheritsSystem(t *testing.T) {
+	// With no piped input, -e text becomes the USER message (buildMessages),
+	// so it is not a system-prompt override: the conversation's stored
+	// system prompt must be inherited, not dropped.
+	t.Setenv("CLAI_CONVERSATIONS_DIR", t.TempDir())
+
+	c, err := conversation.Open("persona")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := time.Now()
+	_ = c.Append(conversation.Message{Role: "system", Content: "answer like a pirate", Model: "openai/gpt-4.1", TS: ts})
+	_ = c.Append(conversation.Message{Role: "user", Content: "explain k8s", TS: ts})
+	_ = c.Append(conversation.Message{Role: "assistant", Content: "arr, containers", TS: ts})
+
+	var outBuf, errBuf bytes.Buffer
+	rt := &Runtime{
+		Output: &output.Output{Stdout: &outBuf, Stderr: &errBuf},
+		Input:  &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}},
+	}
+
+	err = Prompt(context.Background(), rt, PromptOptions{
+		InlinePrompt: "and swarm?", // no stdin: this is the user message
+		DryRun:       true,
+		Conversation: "persona",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got := errBuf.String()
+	if !strings.Contains(got, "system: answer like a pirate") {
+		t.Errorf("stored system prompt not inherited, stderr: %q", got)
+	}
+	if !strings.Contains(got, "user: and swarm?") {
+		t.Errorf("-e text should be the user message, stderr: %q", got)
+	}
+}
+
+func TestPromptConversationLatestNoneErrors(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAI_CONVERSATIONS_DIR", dir)
+	t.Setenv("CLAI_MODEL", "openai/gpt-4o")
+
+	var outBuf, errBuf bytes.Buffer
+	out := &output.Output{Stdout: &outBuf, Stderr: &errBuf}
+	in := &source.Input{Stdin: strings.NewReader(""), Stderr: &bytes.Buffer{}}
+	rt := &Runtime{Output: out, Input: in}
+
+	opts := PromptOptions{
+		InlinePrompt: "hello",
+		Conversation: "-",
+	}
+
+	err := Prompt(context.Background(), rt, opts)
+	if err == nil {
+		t.Fatal("expected error for -c - with empty dir")
+	}
+	if !strings.Contains(err.Error(), "no conversations found") {
+		t.Errorf("expected 'no conversations found' error, got: %v", err)
+	}
+}
+
+func TestPromptConversationBinaryInputRejected(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAI_CONVERSATIONS_DIR", dir)
+	t.Setenv("CLAI_MODEL", "openai/gpt-4o")
+
+	var outBuf, errBuf bytes.Buffer
+	out := &output.Output{Stdout: &outBuf, Stderr: &errBuf}
+	// Input with null bytes
+	in := &source.Input{Stdin: strings.NewReader("hello\x00world"), Stderr: &bytes.Buffer{}}
+	rt := &Runtime{Output: out, Input: in}
+
+	opts := PromptOptions{
+		InlinePrompt: "summarize this",
+		Conversation: "some-conv",
+	}
+
+	err := Prompt(context.Background(), rt, opts)
+	if err == nil {
+		t.Fatal("expected error for binary input with -c")
+	}
+	if !strings.Contains(err.Error(), "binary input") {
+		t.Errorf("expected 'binary input' error, got: %v", err)
+	}
+}
+
+func setupFakeConversationTest(t *testing.T) (*fakeProviderImpl, *Runtime, string) {
+	t.Helper()
+	convDir := t.TempDir()
+	t.Setenv("CLAI_CONVERSATIONS_DIR", convDir)
+	t.Setenv("CLAI_MODEL", "fake/test-model")
+
+	fake := &fakeProviderImpl{}
+	var outBuf, errBuf bytes.Buffer
+	rt := &Runtime{
+		Output:   &output.Output{Stdout: &outBuf, Stderr: &errBuf},
+		Input:    &source.Input{Stdin: strings.NewReader(""), Stderr: &errBuf},
+		Provider: fake,
+	}
+	return fake, rt, convDir
+}
+
+func TestPromptConversationPersistsTurn(t *testing.T) {
+	fake, rt, _ := setupFakeConversationTest(t)
+	fake.response = provider.Response{Content: "answer1", InputTokens: 5, OutputTokens: 7}
+	fake.err = nil
+
+	// Turn 1: new named conversation.
+	rt.Input = &source.Input{Stdin: strings.NewReader("question one"), Stderr: rt.Output.Stderr}
+	err := Prompt(context.Background(), rt, PromptOptions{Conversation: "e2e"})
+	if err != nil {
+		t.Fatalf("turn 1: %v", err)
+	}
+
+	// Verify file exists with system + user + assistant.
+	c, _ := conversation.Open("e2e")
+	msgs, _, _ := c.Messages()
+	if len(msgs) != 3 {
+		t.Fatalf("after turn 1: got %d messages, want 3", len(msgs))
+	}
+	if msgs[0].Role != "system" || msgs[0].Model != "fake/test-model" {
+		t.Errorf("system line: %+v", msgs[0])
+	}
+	if msgs[2].Role != "assistant" || msgs[2].Content != "answer1" || msgs[2].TokensIn != 5 || msgs[2].TokensOut != 7 {
+		t.Errorf("assistant line: %+v", msgs[2])
+	}
+
+	// Stderr should contain the creation notice.
+	stderr := rt.Output.Stderr.(*bytes.Buffer).String()
+	if !strings.Contains(stderr, "[clai] new conversation 'e2e'") {
+		t.Errorf("missing creation notice in stderr: %q", stderr)
+	}
+
+	// Turn 2: continue — no new system line.
+	fake.response = provider.Response{Content: "answer2", InputTokens: 10, OutputTokens: 12}
+	rt.Output.Stderr.(*bytes.Buffer).Reset()
+	rt.Output.Stdout.(*bytes.Buffer).Reset()
+	rt.Input = &source.Input{Stdin: strings.NewReader("question two"), Stderr: rt.Output.Stderr}
+	err = Prompt(context.Background(), rt, PromptOptions{Conversation: "e2e"})
+	if err != nil {
+		t.Fatalf("turn 2: %v", err)
+	}
+
+	msgs, _, _ = c.Messages()
+	if len(msgs) != 5 {
+		t.Fatalf("after turn 2: got %d messages, want 5 (no duplicate system line)", len(msgs))
+	}
+	// Count system lines: must be exactly 1.
+	sysCount := 0
+	for _, m := range msgs {
+		if m.Role == "system" {
+			sysCount++
+		}
+	}
+	if sysCount != 1 {
+		t.Errorf("system line count = %d, want 1", sysCount)
+	}
+}
+
+func TestPromptConversationFailedFirstCallLeavesNothing(t *testing.T) {
+	fake, rt, convDir := setupFakeConversationTest(t)
+	fake.response = provider.Response{}
+	fake.err = errors.New("API unavailable")
+
+	rt.Input = &source.Input{Stdin: strings.NewReader("hello there"), Stderr: rt.Output.Stderr}
+	err := Prompt(context.Background(), rt, PromptOptions{Conversation: "+"})
+	if err == nil {
+		t.Fatal("expected error from failed model call")
+	}
+
+	// The conversations directory should contain no files.
+	entries, _ := os.ReadDir(convDir)
+	for _, e := range entries {
+		if !e.IsDir() {
+			t.Errorf("leftover file after failed first call: %s", e.Name())
+		}
 	}
 }

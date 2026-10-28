@@ -37,9 +37,11 @@ type Config struct {
 
 // ProviderConfig holds settings for a single AI provider.
 type ProviderConfig struct {
-	BaseURL string `mapstructure:"base_url"`
-	APIKey  string `mapstructure:"api_key"`
-	Timeout int    `mapstructure:"timeout"`
+	BaseURL  string `mapstructure:"base_url"`
+	APIKey   string `mapstructure:"api_key"`
+	Timeout  int    `mapstructure:"timeout"`
+	Project  string `mapstructure:"project"`
+	Location string `mapstructure:"location"`
 }
 
 // v is the package-level viper instance.
@@ -68,6 +70,13 @@ var defaultProviders = map[string]ProviderConfig{
 		BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com",
 		APIKey:  "${AWS_BEARER_TOKEN_BEDROCK}",
 	},
+	"gemini": {
+		APIKey: "${GOOGLE_API_KEY}",
+	},
+	"vertex": {
+		Project:  "${GOOGLE_CLOUD_PROJECT}",
+		Location: "${GOOGLE_CLOUD_LOCATION}",
+	},
 }
 
 func init() {
@@ -77,6 +86,8 @@ func init() {
 	for name, pc := range defaultProviders {
 		v.SetDefault("providers."+name+".base_url", pc.BaseURL)
 		v.SetDefault("providers."+name+".api_key", pc.APIKey)
+		v.SetDefault("providers."+name+".project", pc.Project)
+		v.SetDefault("providers."+name+".location", pc.Location)
 	}
 
 	v.SetEnvPrefix("CLAI")
@@ -160,6 +171,8 @@ func expandEnvRefs(cfg *Config) {
 	for name, pc := range cfg.Providers {
 		pc.APIKey = os.ExpandEnv(pc.APIKey)
 		pc.BaseURL = os.ExpandEnv(pc.BaseURL)
+		pc.Project = os.ExpandEnv(pc.Project)
+		pc.Location = os.ExpandEnv(pc.Location)
 		cfg.Providers[name] = pc
 	}
 }

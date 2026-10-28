@@ -74,6 +74,21 @@ func estimateTokens(text string) int {
 	return (len(text) + 3) / 4
 }
 
+// DryRunMessage is one replayed conversation turn for dry-run display.
+type DryRunMessage struct {
+	Role    string
+	Content string
+}
+
+// PrintDryRunHistory writes replayed conversation history to stderr, one line
+// per turn, truncated for readability. Called before PrintDryRun when a
+// conversation is active.
+func (o *Output) PrintDryRunHistory(msgs []DryRunMessage) {
+	for _, m := range msgs {
+		_, _ = colorDiag.Fprintf(o.Stderr, "[clai] history %s: %s\n", m.Role, truncateRunes([]byte(m.Content), 100))
+	}
+}
+
 // PrintDryRun prints what would be sent to the model without calling it.
 // Includes model, prompts, and estimated token counts.
 func (o *Output) PrintDryRun(model, systemPrompt, userMessage string) {

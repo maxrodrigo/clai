@@ -10,7 +10,7 @@ A `clai` prompt is a system instruction delivered to an LLM. The user's input ar
 
 Three constraints follow from this:
 
-1. **Output is data, not conversation.** No preambles ("Here's your summary:"), no sign-offs. The output must be directly consumable by the next tool in the pipeline.
+1. **Output is data, not conversation.** No preambles ("Here's your summary:"), no sign-offs. The output must be directly consumable by the next tool in the pipeline. (This describes the default stateless mode; `-c` is the explicit opt-in that carries context across invocations — the output itself is still plain data.)
 2. **The prompt must work across model sizes.** Built-in prompts run on small local models as well as frontier models.
 3. **The prompt is the interface.** No follow-up, no clarification, no retry loop. The prompt must be unambiguous enough to produce useful output on the first call.
 
@@ -97,7 +97,6 @@ Every prompt file is Markdown with an optional YAML frontmatter block.
 ---
 description: One-line summary shown in `clai prompt`
 model: provider/model-name
-temperature: 0.7
 strategy: cot
 schema: '{"field": "type"}'
 think: true
@@ -114,10 +113,10 @@ Your prompt body here.
 | ------------- | ------ | ---------------------------------------------------------------------------------------------- |
 | `description` | string | Shown in `clai prompt`. Required for system prompts.                                           |
 | `model`       | string | Default model. Format: `provider/model-name`. Overridden by `-m`, `CLAI_MODEL_<NAME>`, config. |
-| `temperature` | float  | Sampling temperature (0.0–2.0). Overridden by `-t`.                                            |
+| `temperature` | float  | Sampling temperature (0.0–2.0). Not supported by all models. Overridden by `-t`.               |
 | `strategy`    | string | Default reasoning strategy. Overridden by `--strategy`.                                        |
 | `schema`      | string | JSON Schema for structured output. Overridden by `-s`.                                         |
-| `think`       | bool   | Enable extended thinking (Anthropic/Bedrock). Overridden by `--think`.                         |
+| `think`       | bool   | Enable extended thinking (Anthropic/Bedrock/Gemini). Overridden by `--think`.                  |
 | `extends`     | string | Inherit body and frontmatter from another named prompt.                                        |
 | `prepend`     | list   | Files prepended before the prompt body. Relative to prompt file's directory.                   |
 | `append`      | list   | Files appended after the prompt body. Same path resolution.                                    |
@@ -130,7 +129,9 @@ Your prompt body here.
 model: openai/gpt-4.1 # needs complex JSON output
 ```
 
-**`temperature`**: when the task has a natural temperature:
+**`temperature`**: when the task has a natural temperature and you know the
+target model supports it. Not all models accept temperature (e.g., Anthropic
+gen-5+, OpenAI o-series reasoning models reject it):
 
 ```yaml
 temperature: 0    # extraction tasks
@@ -396,6 +397,15 @@ base_url = "https://bedrock-runtime.us-east-1.amazonaws.com"
 api_key = "${AWS_BEARER_TOKEN_BEDROCK}"
 # timeout = 0
 
+[providers.gemini]
+api_key = "${GOOGLE_API_KEY}"
+# timeout = 0
+
+[providers.vertex]
+project = "${GOOGLE_CLOUD_PROJECT}"
+location = "${GOOGLE_CLOUD_LOCATION}"
+# timeout = 0
+
 [providers.ollama]
 base_url = "http://localhost:11434/v1"
 # api_key = ""  # not required for local Ollama
@@ -429,7 +439,7 @@ export CLAI_MODEL_CODE_REVIEW="anthropic/claude-sonnet"
 export CLAI_MODEL_SUMMARIZE="openai/gpt-4.1-mini"
 ```
 
-Provider API keys use their standard environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `AWS_BEARER_TOKEN_BEDROCK`).
+Provider API keys use their standard environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `AWS_BEARER_TOKEN_BEDROCK`, `GOOGLE_API_KEY`). Vertex AI uses `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION`.
 
 ### Precedence
 

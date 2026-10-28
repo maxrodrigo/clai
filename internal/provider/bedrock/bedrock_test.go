@@ -384,3 +384,53 @@ func TestModels_invalidBaseURL(t *testing.T) {
 		t.Errorf("error = %v, want to mention bedrock-runtime", err)
 	}
 }
+
+func TestBuildBody_messages(t *testing.T) {
+	body := buildBody(provider.Request{
+		Messages: []provider.Message{
+			{Role: "system", Content: "Be concise"},
+			{Role: "user", Content: "What is Go?"},
+			{Role: "assistant", Content: "A language."},
+			{Role: "user", Content: "Who made it?"},
+		},
+	})
+
+	// System should be lifted into the dedicated system slot
+	if len(body.System) != 1 || body.System[0].Text != "Be concise" {
+		t.Errorf("System = %+v, want [{Text: Be concise}]", body.System)
+	}
+	// Should have 3 messages (system is not in Messages)
+	if len(body.Messages) != 3 {
+		t.Fatalf("len(Messages) = %d, want 3", len(body.Messages))
+	}
+	// Verify roles and content
+	if body.Messages[0].Role != "user" || body.Messages[0].Content[0].Text != "What is Go?" {
+		t.Errorf("Messages[0] = %+v, want user/What is Go?", body.Messages[0])
+	}
+	if body.Messages[1].Role != "assistant" || body.Messages[1].Content[0].Text != "A language." {
+		t.Errorf("Messages[1] = %+v, want assistant/A language.", body.Messages[1])
+	}
+	if body.Messages[2].Role != "user" || body.Messages[2].Content[0].Text != "Who made it?" {
+		t.Errorf("Messages[2] = %+v, want user/Who made it?", body.Messages[2])
+	}
+}
+
+func TestBuildBody_nonAssistantRoleNormalizesToUser(t *testing.T) {
+	body := buildBody(provider.Request{
+		Messages: []provider.Message{
+			{Role: "user", Content: "hi"},
+			{Role: "assistant", Content: "hello"},
+			{Role: "tool", Content: "result"},
+		},
+	})
+
+	if len(body.Messages) != 3 {
+		t.Fatalf("len(Messages) = %d, want 3", len(body.Messages))
+	}
+	if body.Messages[2].Role != "user" {
+		t.Errorf("Messages[2].Role = %q, want %q (non-assistant roles normalize to user)", body.Messages[2].Role, "user")
+	}
+	if body.Messages[2].Content[0].Text != "result" {
+		t.Errorf("Messages[2].Content = %q, want %q", body.Messages[2].Content[0].Text, "result")
+	}
+}

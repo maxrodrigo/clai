@@ -25,16 +25,43 @@ type Provider interface {
 	Models(ctx context.Context) ([]string, error)
 }
 
+// Message is a single turn in a multi-turn request.
+type Message struct {
+	Role    string // "system", "user", "assistant"
+	Content string
+}
+
 // Request represents the input to a model call.
 type Request struct {
-	Model       string
-	System      string
-	User        string
+	Model  string
+	System string
+	User   string
+	// Messages, when non-empty, carries the full multi-turn history and takes
+	// precedence over System/User. The run layer guarantees at most one
+	// system-role message, always first. Providers consume it via Turns.
+	Messages    []Message
 	Temperature *float64 // nil means use provider default
 	MaxTokens   int
 	Think       bool
 	ThinkBudget int
 	JSONMode    bool
+}
+
+// Turns normalizes the request into a system prompt and ordered non-system
+// turns, regardless of whether it uses single-shot (System/User) or
+// multi-turn (Messages) form.
+func (r Request) Turns() (system string, turns []Message) {
+	if len(r.Messages) == 0 {
+		return r.System, []Message{{Role: "user", Content: r.User}}
+	}
+	for _, m := range r.Messages {
+		if m.Role == "system" {
+			system = m.Content
+			continue
+		}
+		turns = append(turns, m)
+	}
+	return system, turns
 }
 
 // Response represents the output from a model call.
@@ -112,7 +139,7 @@ func GetByName(name string, cfg *config.Config) (Provider, error) {
 // requiresAPIKey returns true for providers known to need authentication.
 func requiresAPIKey(name string) bool {
 	switch name {
-	case "ollama":
+	case "ollama", "vertex":
 		return false
 	default:
 		return true
@@ -128,6 +155,10 @@ func envKeyHint(name string) string {
 		return "ANTHROPIC_API_KEY"
 	case "bedrock":
 		return "AWS_BEARER_TOKEN_BEDROCK"
+	case "gemini":
+		return "GOOGLE_API_KEY"
+	case "vertex":
+		return "GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION"
 	default:
 		return strings.ToUpper(name) + "_API_KEY"
 	}

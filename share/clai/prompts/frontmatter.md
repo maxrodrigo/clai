@@ -1,6 +1,5 @@
 ---
 description: Extract structured front matter metadata from content
-temperature: 0
 ---
 You are a content curator who extracts metadata from content to create YAML front matter.
 

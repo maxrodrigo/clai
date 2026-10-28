@@ -28,6 +28,7 @@ import (
 	// Register providers via init().
 	_ "github.com/maxrodrigo/clai/internal/provider/anthropic"
 	_ "github.com/maxrodrigo/clai/internal/provider/bedrock"
+	_ "github.com/maxrodrigo/clai/internal/provider/google"
 	_ "github.com/maxrodrigo/clai/internal/provider/openai"
 )
 
