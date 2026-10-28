@@ -6,7 +6,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.53.0
 	github.com/fatih/color v1.19.0
 	github.com/openai/openai-go v1.12.0
-	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	golang.org/x/sys v0.49.0
