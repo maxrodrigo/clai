@@ -3,7 +3,7 @@ module github.com/maxrodrigo/clai
 go 1.26.0
 
 require (
-	github.com/anthropics/anthropic-sdk-go v1.57.0
+	github.com/anthropics/anthropic-sdk-go v1.84.0
 	github.com/fatih/color v1.19.0
 	github.com/openai/openai-go v1.12.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
@@ -11,7 +11,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/term v0.47.0
-	google.golang.org/genai v1.76.0
+	google.golang.org/genai v1.77.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
